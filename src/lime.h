@@ -71,15 +71,15 @@
 #define SPI                     1.77245385091		/* sqrt(pi)	*/
 #define maxp                    0.15
 #define OtoP                    3.
-#define NITERATIONS             16
+#define NITERATIONS             25
 #define max_phot                10000		/* don't set this value higher unless you have enough memory. */
-#define ininphot                9
-#define minpop                  1.e-6
+#define ininphot                25
+#define minpop                  1.e-8
 #define eps                     1.0e-30
 #define TOL                     1e-6
 #define MAXITER                 50
 #define goal                    50
-#define fixset                  1e-6
+#define fixset                  1e-8
 #define maxBlendDeltaV		1.e4		/* m/s */
 #define NUM_VEL_COEFFS		5
 #define MAX_NSPECIES            100

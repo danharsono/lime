@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 #
 #  par_classes.py
 #  This file is part of LIME, the versatile line modeling engine
@@ -15,9 +14,17 @@ _DEFAULT_ANGLE = -999.0
 
 class ImageParameters:
   """
-This is to define the complete list of 'image' parameters which the user can set for each image. Although the parameters are set up as class attributes when the module is imported, the fundamental definition is via the 'hidden' attribute _listOfAttrs. This list includes a tuple element for each parameter. Each tuple has 5 elements: the parameter name, its type (one of ['int','float','bool','str','obj']), whether it is a list, whether it is mandatory, and the default value.
+  This is to define the complete list of 'image' parameters which the user 
+  can set for each image. Although the parameters are set up as class attributes 
+  when the module is imported, the fundamental definition is via the 'hidden' 
+  attribute _listOfAttrs. This list includes a tuple element for each parameter. 
+  Each tuple has 5 elements: the parameter name, its type (one of ['int','float',
+  'bool','str','obj']), whether it is a list, whether it is mandatory, and the 
+  default value.
 
-***NOTE*** that the ordering of the elements in _listOfAttrs is important - the code in pymodel_wrap.initParImg() depends on it. Don't change it without also changing the relevant code.
+  ***NOTE*** that the ordering of the elements in _listOfAttrs is important - the 
+  code in pymodel_wrap.initParImg() depends on it. Don't change it without also 
+  changing the relevant code.
   """
   _listOfAttrs = []
   #                     name          type    list?  mand?  default
@@ -45,9 +52,17 @@ for attr in ImageParameters._listOfAttrs:
 
 class ModelParameters:
   """
-This is to define the complete list of 'ordinary' parameters which the user can set. Although the parameters are set up as class attributes when the module is imported, the fundamental definition is via the 'hidden' attribute _listOfAttrs. This list includes a tuple element for each parameter. Each tuple has 5 elements: the parameter name, its type (one of ['int','float','bool','str','obj']), whether it is a list, whether it is mandatory, and the default value. 
+    This is to define the complete list of 'ordinary' parameters which 
+    the user can set. Although the parameters are set up as class attributes 
+    when the module is imported, the fundamental definition is via the 'hidden' 
+    attribute _listOfAttrs. This list includes a tuple element for each parameter. 
+    Each tuple has 5 elements: the parameter name, its type (one of ['int','float',
+    'bool','str','obj']), whether it is a list, whether it is mandatory, and the 
+    default value. 
 
-***NOTE*** that the ordering of the elements in _listOfAttrs is important - the code in pymodel_wrap.initParImg() depends on it. Don't change it without also changing the relevant code.
+    ***NOTE*** that the ordering of the elements in _listOfAttrs is important - the 
+    code in pymodel_wrap.initParImg() depends on it. Don't change it without also 
+    changing the relevant code.
   """
   _listOfAttrs = []
   #                     name                type   list?  mand?  default
@@ -84,7 +99,6 @@ for attr in ModelParameters._listOfAttrs:
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 if __name__ == '__main__':
-
   fred = ModelParameters()
 
   print fred.sampling

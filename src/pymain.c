@@ -442,11 +442,9 @@ mallocInputParStrs(inputPars *par){
 int
 main(int argc, char *argv[]){
   /*
-Main program for stand-alone LIME with a python model file.
-
-For pretty detailed documentation on embedding python in C, see
-
-  https://docs.python.org/2/c-api/index.html
+   * Main program for stand-alone LIME with a python model file.
+   * For pretty detailed documentation on embedding python in C, see
+   * https://docs.python.org/2/c-api/index.html
   */
 
   const int lenSuffix=3,maxLenNoSuffix=STR_LEN_0,nDblMacros=9,nIntMacros=7;
@@ -511,7 +509,9 @@ For pretty detailed documentation on embedding python in C, see
     exit(1);
   }
   modelName = argv[1];
-
+  /*
+   * Error catching
+   */
   lenNoSuffix = strlen(modelName) - lenSuffix;
   if(lenNoSuffix<1){
     sprintf(message, "Model file name must be more than %d characters long!", lenSuffix);
@@ -529,22 +529,33 @@ For pretty detailed documentation on embedding python in C, see
     sprintf(message, "Python files must end in '.py'");
     error(message);
   }
-
+  
   strncpy(modelNameNoSuffix, modelName, strlen(modelName)-lenSuffix);
   modelNameNoSuffix[lenNoSuffix] = '\0';
 
-  /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
+  /*
+   *This void function iitializes the Python Interpreter. 
+   *The inialization should be called before using API functions.
+   *from the documents:
+   *  This initializes the table of loaded modules (sys.modules), and 
+   * creates the fundamental modules __builtin__, __main__ and sys. It also 
+   * initializes the module search path (sys.path). It does not set sys.argv; 
+   * use PySys_SetArgvEx() for that. This is a no-op when called for a second 
+   * time (without calling Py_Finalize() first)
+   * . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
+  
   Py_Initialize();
 
-  /* The first thing to do is add the PWD to sys.path, which doesn't happen by default when embedding.
+  /* 
+   * The first thing to do is add the PWD to sys.path, which doesn't happen by default when embedding.
   */
-  oldModulePath = Py_GetPath();
-  strlenOMPath = strlen(oldModulePath);
-  newModulePath = malloc(sizeof(char)*strlenOMPath+3);
+  oldModulePath     = Py_GetPath();
+  strlenOMPath      = strlen(oldModulePath);
+  newModulePath     = malloc(sizeof(char)*strlenOMPath+3);
   if(myStrCpy(oldModulePath, newModulePath, strlenOMPath+2))
     pyerror("Could not copy existing sys.path to a new string.");
-
-  newModulePath[strlenOMPath] = ':';
+  
+  newModulePath[strlenOMPath]   = ':';
   newModulePath[strlenOMPath+1] = '.';
   newModulePath[strlenOMPath+2] = '\0';
 
@@ -556,7 +567,8 @@ For pretty detailed documentation on embedding python in C, see
     pyerror("Could not append PWD to sys.path");
   }
 
-  /* Now get the lists of attribute names from the 2 classes in par_classes.py:
+  /* 
+   * Now get the lists of attribute names from the 2 classes in par_classes.py:
   */
   status = getParTemplates(headerModuleName, &parTemplate, &nPars\
     , &imgParTemplate, &nImgPars);
@@ -600,7 +612,6 @@ For pretty detailed documentation on embedding python in C, see
 
   for(i=0;i<nIntMacros;i++){
     pValue = Py_BuildValue("i", macrosInt[i].value);
-
     if(pValue==NULL){
       if(!silent)
         PyErr_Print();
@@ -608,7 +619,6 @@ For pretty detailed documentation on embedding python in C, see
       sprintf(message, "Failed to convert type int macro %d", i);
       pyerror(message);
     }
-
     if(PyDict_SetItemString(pMacros_global, macrosInt[i].name, pValue)){
       if(!silent)
         PyErr_Print();
@@ -617,11 +627,11 @@ For pretty detailed documentation on embedding python in C, see
       sprintf(message, "Failed to set dictionary item for type int macro %d", i);
       pyerror(message);
     }
-
     Py_DECREF(pValue);
   }
 
-  /* Now we open the user's 'model' module:
+  /* 
+   * Now we open the user's 'model' module:
   */
   pName = PyString_FromString(modelNameNoSuffix);
   if(pName==NULL){
@@ -645,7 +655,8 @@ For pretty detailed documentation on embedding python in C, see
   /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
   /* Read user-supplied parameters from the 'model' module they supply:
   */
-  status = initParImg(pModule_global, pMacros_global, parTemplate, nPars, imgParTemplate, nImgPars, &par, &img, &nImages);
+  status = initParImg(pModule_global, pMacros_global, parTemplate\
+    , nPars, imgParTemplate, nImgPars, &par, &img, &nImages);
   if(status){
     Py_DECREF(pMacros_global);
     Py_DECREF(pModule_global);
@@ -672,7 +683,8 @@ For pretty detailed documentation on embedding python in C, see
   */
   status = run(par, img, nImages);
 
-  /* Python-object clean up before status check and possible exit.
+  /* 
+   * Python-object clean up before status check and possible exit.
   */
   decrefAllGlobals();
 

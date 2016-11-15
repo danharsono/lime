@@ -3,7 +3,7 @@
 #
 # Copyright (C) 2006-2014 Christian Brinch
 # Copyright (C) 2015-2016 The LIME development team
-##
+
 ##
 ## Make sure to put the correct paths.
 ##
@@ -34,12 +34,20 @@ endif
 CPPFLAGS	= -I${PREFIX}/include \
 		  -I${PREFIX}/src \
 		  -I${HOME}/include \
-		  -I/data1/harsono/Library/cfitsio \
+		  -I/opt/local/include \
+		  -I/sw//include \
 	          ${EXTRACPPFLAGS}
 
-QHULL   = qhull
-CPPFLAGS += -DOLD_QHULL
-CPPFLAGS += -DOLD_FITSIO
+ifdef OLD_QHULL
+	QHULL   = qhull
+	CPPFLAGS += -DOLD_QHULL
+else
+	QHULL   = qhullstatic
+endif
+
+ifdef OLD_FITSIO
+	CPPFLAGS += -DOLD_FITSIO
+endif
 
 # Names of source files included:
 include Makefile.defs

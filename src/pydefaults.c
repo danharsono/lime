@@ -54,7 +54,12 @@ void
 
 double
     gridDensity_default(configInfo *par, double *r){
-      /* The grid points within the model are chosen randomly via the rejection method with a probability distribution which the present function is intended to provide. The user may supply their own version of this within model.c; the default here implements the grid-point selection function used in LIME<=1.5.
+      /* 
+       * The grid points within the model are chosen randomly via the rejection 
+       * method with a probability distribution which the present function is 
+       * intended to provide. The user may supply their own version of this 
+       * within model.c; the default here implements the grid-point selection 
+       * function used in LIME<=1.5.
       */
       double val[99],totalDensity=0.0,rSquared=0.0,fracDensity=0.0;
       int i;
