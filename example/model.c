@@ -30,6 +30,7 @@ input(inputPars *par, image *img){
   par->outputfile               = "populations.pop";
   par->binoutputfile            = "restart.pop";
   par->gridfile                 = "grid.vtk";
+  par->nThreads                 = 4;
 
   /*
     Setting elements of the following three arrays is optional. NOTE
@@ -188,7 +189,8 @@ doppler(double x, double y, double z, double *doppler){
 void
 velocity(double x, double y, double z, double *vel){
   double r, rToUse, ffSpeed;
-  const double rMin = 0.1*AU; /* This cutoff should be chosen smaller than par->minScale but greater than zero (to avoid a singularity at the origin). */
+  const double rMin = 0.1*AU; 
+  /* This cutoff should be chosen smaller than par->minScale but greater than zero (to avoid a singularity at the origin). */
 
   /*
    * Calculate radial distance from origin

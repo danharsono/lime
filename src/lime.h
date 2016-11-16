@@ -71,7 +71,7 @@
 #define SPI                     1.77245385091		/* sqrt(pi)	*/
 #define maxp                    0.15
 #define OtoP                    3.
-#define NITERATIONS             25
+#define NITERATIONS             2
 #define max_phot                10000		/* don't set this value higher unless you have enough memory. */
 #define ininphot                25
 #define minpop                  1.e-8

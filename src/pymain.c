@@ -15,8 +15,12 @@ TODO:
 #ifdef FASTEXP
 double EXP_TABLE_2D[128][10];
 double EXP_TABLE_3D[256][2][10];
-/* I've hard-wired the dimensions of these arrays, but it would be better perhaps to declare them as pointers, and calculate the dimensions with the help of the function call:
-  calcFastExpRange(FAST_EXP_MAX_TAYLOR, FAST_EXP_NUM_BITS, &numMantissaFields, &lowestExponent, &numExponentsUsed)
+/* 
+ * I've hard-wired the dimensions of these arrays, but it would be better 
+ * perhaps to declare them as pointers, and calculate the dimensions with 
+ * the help of the function call:
+ * calcFastExpRange(FAST_EXP_MAX_TAYLOR, FAST_EXP_NUM_BITS, &numMantissaFields, 
+ * &lowestExponent, &numExponentsUsed)
 */
 #else
 double EXP_TABLE_2D[1][1]; // nominal definitions so the fastexp.c module will compile.
@@ -54,10 +58,10 @@ void
 userFuncWrapper(PyObject *pFunc, const char *funcName, PyObject *pMacros\
   , double x, double y, double z, PyObject **pResult){
 
-  int status=0;
+  int       status=0;
   PyObject *pArgs;
 
-  pArgs = Py_BuildValue("(Offf)", pMacros, x, y, z);
+  pArgs     = Py_BuildValue("(Offf)", pMacros, x, y, z);
   if(pArgs==NULL){
     status = 1;
   }else{
@@ -260,9 +264,14 @@ velocity(double x, double y, double z, double *veloValues){
   if(pVelocity==NULL) /* User did not supply this function. */
     velocity_default(x, y, z, veloValues);
   else{
+    //GIL
+    PyGILState_STATE gstate;
+    gstate = PyGILState_Ensure();
+    
     int nItems=0,i;
     PyObject *pResult=NULL,*pListItem;
-    userFuncWrapper(pVelocity, "velocity", pMacros_global, x, y, z, &pResult); /* Sets up and calls the function. pResult guaranteed non-NULL. */
+    userFuncWrapper(pVelocity, "velocity", pMacros_global, x, y, z, &pResult); 
+    /* Sets up and calls the function. pResult guaranteed non-NULL. */
 
     /* The returned value should be a list of 3 floats (or ints).
     */
@@ -299,6 +308,7 @@ velocity(double x, double y, double z, double *veloValues){
         pyerror(message);
       }
     }
+    PyGILState_Release(gstate);
     Py_DECREF(pResult);
   }
 }
@@ -441,270 +451,268 @@ mallocInputParStrs(inputPars *par){
 /*....................................................................*/
 int
 main(int argc, char *argv[]){
-  /*
-   * Main program for stand-alone LIME with a python model file.
-   * For pretty detailed documentation on embedding python in C, see
-   * https://docs.python.org/2/c-api/index.html
-  */
+    /*
+    * Main program for stand-alone LIME with a python model file.
+    * For pretty detailed documentation on embedding python in C, see
+    * https://docs.python.org/2/c-api/index.html
+    */
 
-  const int lenSuffix=3,maxLenNoSuffix=STR_LEN_0,nDblMacros=9,nIntMacros=7;
-  const char *nameOfExecutable="lime", *headerModuleName="par_classes";
-  const char *oldModulePath;
-  char *modelName,modelNameNoSuffix[maxLenNoSuffix+1],message[STR_LEN_0],*newModulePath;
-  char suffix[lenSuffix+1];
-  int lenNoSuffix,nPars,nImgPars,nImages,i,status,strlenOMPath;
-  PyObject *pName,*pValue;
-  inputPars par;
-  image *img = NULL;
-  parTemplateType *parTemplate=NULL,*imgParTemplate=NULL;
-  struct {char *name; double value;} macrosDbl[nDblMacros];
-  struct {char *name;    int value;} macrosInt[nIntMacros];
+    const int lenSuffix=3,maxLenNoSuffix=STR_LEN_0,nDblMacros=9,nIntMacros=7;
+    const char *nameOfExecutable="lime", *headerModuleName="par_classes";
+    const char *oldModulePath;
+    char *modelName,modelNameNoSuffix[maxLenNoSuffix+1],message[STR_LEN_0],*newModulePath;
+    char suffix[lenSuffix+1];
+    int lenNoSuffix,nPars,nImgPars,nImages,i,status,strlenOMPath;
+    PyObject *pName,*pValue;
+    inputPars par;
+    image *img = NULL;
+    parTemplateType *parTemplate=NULL,*imgParTemplate=NULL;
+    struct {char *name; double value;} macrosDbl[nDblMacros];
+    struct {char *name;    int value;} macrosInt[nIntMacros];
 
-  i = 0;
-  macrosDbl[i++].name = "AMU";
-  macrosDbl[i++].name = "CLIGHT";
-  macrosDbl[i++].name = "HPLANCK";
-  macrosDbl[i++].name = "KBOLTZ";
-  macrosDbl[i++].name = "GRAV";
-  macrosDbl[i++].name = "AU";
-  macrosDbl[i++].name = "PC";
-  macrosDbl[i++].name = "PI";
-  macrosDbl[i++].name = "SPI";
-  i = 0;
-  macrosDbl[i++].value = AMU;
-  macrosDbl[i++].value = CLIGHT;
-  macrosDbl[i++].value = HPLANCK;
-  macrosDbl[i++].value = KBOLTZ;
-  macrosDbl[i++].value = GRAV;
-  macrosDbl[i++].value = AU;
-  macrosDbl[i++].value = PC;
-  macrosDbl[i++].value = PI;
-  macrosDbl[i++].value = SPI;
+    i = 0;
+    macrosDbl[i++].name = "AMU";
+    macrosDbl[i++].name = "CLIGHT";
+    macrosDbl[i++].name = "HPLANCK";
+    macrosDbl[i++].name = "KBOLTZ";
+    macrosDbl[i++].name = "GRAV";
+    macrosDbl[i++].name = "AU";
+    macrosDbl[i++].name = "PC";
+    macrosDbl[i++].name = "PI";
+    macrosDbl[i++].name = "SPI";
+    i = 0;
+    macrosDbl[i++].value = AMU;
+    macrosDbl[i++].value = CLIGHT;
+    macrosDbl[i++].value = HPLANCK;
+    macrosDbl[i++].value = KBOLTZ;
+    macrosDbl[i++].value = GRAV;
+    macrosDbl[i++].value = AU;
+    macrosDbl[i++].value = PC;
+    macrosDbl[i++].value = PI;
+    macrosDbl[i++].value = SPI;
 
-  i = 0;
-  macrosInt[i++].name = "CP_H2";
-  macrosInt[i++].name = "CP_p_H2";
-  macrosInt[i++].name = "CP_o_H2";
-  macrosInt[i++].name = "CP_e";
-  macrosInt[i++].name = "CP_H";
-  macrosInt[i++].name = "CP_He";
-  macrosInt[i++].name = "CP_Hplus";
+    i = 0;
+    macrosInt[i++].name = "CP_H2";
+    macrosInt[i++].name = "CP_p_H2";
+    macrosInt[i++].name = "CP_o_H2";
+    macrosInt[i++].name = "CP_e";
+    macrosInt[i++].name = "CP_H";
+    macrosInt[i++].name = "CP_He";
+    macrosInt[i++].name = "CP_Hplus";
 
-  for(i=0;i<nIntMacros;i++)
-    macrosInt[i].value = i+1;
+    for(i=0;i<nIntMacros;i++)
+        macrosInt[i].value = i+1;
 
-  silent = 0;
+    silent = 0;
 
-  mallocInputPars(&par);
-  mallocInputParStrs(&par);
+    mallocInputPars(&par);
+    mallocInputParStrs(&par);
 
-  /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
-  /* Get the model name, then strip off the '.py' from it:
-  */
-  if(argc<2){
-    if(!silent){
-      sprintf(message, "Useage: %s <python model file>", nameOfExecutable);
-      warning(message);
+    /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
+    /* Get the model name, then strip off the '.py' from it:
+    */
+    if(argc<2){
+        if(!silent){
+        sprintf(message, "Useage: %s <python model file>", nameOfExecutable);
+        warning(message);
+        }
+        exit(1);
     }
-    exit(1);
-  }
-  modelName = argv[1];
-  /*
-   * Error catching
-   */
-  lenNoSuffix = strlen(modelName) - lenSuffix;
-  if(lenNoSuffix<1){
-    sprintf(message, "Model file name must be more than %d characters long!", lenSuffix);
-    error(message);
-  }
-  if(lenNoSuffix>maxLenNoSuffix){
-    sprintf(message, "Model file name is longer than the permitted %d characters.\n", maxLenNoSuffix);
-    error(message);
-  }
+    modelName = argv[1];
+    /*
+    * Error catching
+    */
+    lenNoSuffix = strlen(modelName) - lenSuffix;
+    if(lenNoSuffix<1){
+        sprintf(message, "Model file name must be more than %d characters long!", lenSuffix);
+        error(message);
+    }
+    if(lenNoSuffix>maxLenNoSuffix){
+        sprintf(message, "Model file name is longer than the permitted %d characters.\n", maxLenNoSuffix);
+        error(message);
+    }
 
-  strncpy(suffix, modelName + lenNoSuffix, lenSuffix);
-  suffix[lenSuffix] = '\0';
+    strncpy(suffix, modelName + lenNoSuffix, lenSuffix);
+    suffix[lenSuffix] = '\0';
 
-  if(strcmp(suffix,".py")!=0){
-    sprintf(message, "Python files must end in '.py'");
-    error(message);
-  }
-  
-  strncpy(modelNameNoSuffix, modelName, strlen(modelName)-lenSuffix);
-  modelNameNoSuffix[lenNoSuffix] = '\0';
+    if(strcmp(suffix,".py")!=0){
+        sprintf(message, "Python files must end in '.py'");
+        error(message);
+    }
+    
+    strncpy(modelNameNoSuffix, modelName, strlen(modelName)-lenSuffix);
+    modelNameNoSuffix[lenNoSuffix] = '\0';
 
-  /*
-   *This void function iitializes the Python Interpreter. 
-   *The inialization should be called before using API functions.
-   *from the documents:
-   *  This initializes the table of loaded modules (sys.modules), and 
-   * creates the fundamental modules __builtin__, __main__ and sys. It also 
-   * initializes the module search path (sys.path). It does not set sys.argv; 
-   * use PySys_SetArgvEx() for that. This is a no-op when called for a second 
-   * time (without calling Py_Finalize() first)
-   * . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
-  
-  Py_Initialize();
+    /*
+    *This void function iitializes the Python Interpreter. 
+    *The inialization should be called before using API functions.
+    *from the documents:
+    *  This initializes the table of loaded modules (sys.modules), and 
+    * creates the fundamental modules __builtin__, __main__ and sys. It also 
+    * initializes the module search path (sys.path). It does not set sys.argv; 
+    * use PySys_SetArgvEx() for that. This is a no-op when called for a second 
+    * time (without calling Py_Finalize() first)
+    * . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
+    
+    Py_Initialize();
+    if (! PyEval_ThreadsInitialized()) {
+      PyEval_InitThreads();
+    }
 
-  /* 
-   * The first thing to do is add the PWD to sys.path, which doesn't happen by default when embedding.
-  */
-  oldModulePath     = Py_GetPath();
-  strlenOMPath      = strlen(oldModulePath);
-  newModulePath     = malloc(sizeof(char)*strlenOMPath+3);
-  if(myStrCpy(oldModulePath, newModulePath, strlenOMPath+2))
-    pyerror("Could not copy existing sys.path to a new string.");
-  
-  newModulePath[strlenOMPath]   = ':';
-  newModulePath[strlenOMPath+1] = '.';
-  newModulePath[strlenOMPath+2] = '\0';
+    /* 
+    * The first thing to do is add the PWD to sys.path, which doesn't happen by default when embedding.
+    */
+    oldModulePath     = Py_GetPath();
+    strlenOMPath      = strlen(oldModulePath);
+    newModulePath     = malloc(sizeof(char)*strlenOMPath+3);
+    if(myStrCpy(oldModulePath, newModulePath, strlenOMPath+2))
+        pyerror("Could not copy existing sys.path to a new string.");
+    
+    newModulePath[strlenOMPath]   = ':';
+    newModulePath[strlenOMPath+1] = '.';
+    newModulePath[strlenOMPath+2] = '\0';
 
-  PySys_SetPath(newModulePath);
-  free(newModulePath);
-  if(PyErr_Occurred()){
-    if(!silent)
-      PyErr_Print();
-    pyerror("Could not append PWD to sys.path");
-  }
-
-  /* 
-   * Now get the lists of attribute names from the 2 classes in par_classes.py:
-  */
-  status = getParTemplates(headerModuleName, &parTemplate, &nPars\
-    , &imgParTemplate, &nImgPars);
-  if(status){
-    sprintf(message, "Function getParTemplates() returned with status %d", status);
-    pyerror(message);
-  }
-
-  /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
-  /* Construct the 'macro' list argument:
-  */
-  pMacros_global = PyDict_New();
-  if(pMacros_global==NULL){
-    if(!silent)
-      PyErr_Print();
-    sprintf(message, "Failed to initialize macro dictionary.");
-    pyerror(message);
-  }
-
-  for(i=0;i<nDblMacros;i++){
-    pValue = PyFloat_FromDouble(macrosDbl[i].value);
-    if(pValue==NULL){
-      if(!silent)
+    PySys_SetPath(newModulePath);
+    free(newModulePath);
+    if(PyErr_Occurred()){
+        if(!silent)
         PyErr_Print();
-      Py_DECREF(pMacros_global);
-      sprintf(message, "Failed to convert type double macro %d", i);
-      pyerror(message);
+        pyerror("Could not append PWD to sys.path");
     }
 
-    if(PyDict_SetItemString(pMacros_global, macrosDbl[i].name, pValue)){
-      if(!silent)
+    /* 
+    * Now get the lists of attribute names from the 2 classes in par_classes.py:
+    */
+    status = getParTemplates(headerModuleName, &parTemplate, &nPars\
+        , &imgParTemplate, &nImgPars);
+    if(status){
+        sprintf(message, "Function getParTemplates() returned with status %d", status);
+        pyerror(message);
+    }
+
+    /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
+    /* Construct the 'macro' list argument:
+    */
+    pMacros_global = PyDict_New();
+    if(pMacros_global==NULL){
+        if(!silent)
         PyErr_Print();
-      Py_DECREF(pValue);
-      Py_DECREF(pMacros_global);
-      sprintf(message, "Failed to set dictionary item for type double macro %d", i);
-      pyerror(message);
+        sprintf(message, "Failed to initialize macro dictionary.");
+        pyerror(message);
     }
 
-    Py_DECREF(pValue);
-  }
+    for(i=0;i<nDblMacros;i++){
+        pValue = PyFloat_FromDouble(macrosDbl[i].value);
+        if(pValue==NULL){
+        if(!silent)
+            PyErr_Print();
+        Py_DECREF(pMacros_global);
+        sprintf(message, "Failed to convert type double macro %d", i);
+        pyerror(message);
+        }
 
-  for(i=0;i<nIntMacros;i++){
-    pValue = Py_BuildValue("i", macrosInt[i].value);
-    if(pValue==NULL){
-      if(!silent)
+        if(PyDict_SetItemString(pMacros_global, macrosDbl[i].name, pValue)){
+        if(!silent)
+            PyErr_Print();
+        Py_DECREF(pValue);
+        Py_DECREF(pMacros_global);
+        sprintf(message, "Failed to set dictionary item for type double macro %d", i);
+        pyerror(message);
+        }
+
+        Py_DECREF(pValue);
+    }
+
+    for(i=0;i<nIntMacros;i++){
+        pValue = Py_BuildValue("i", macrosInt[i].value);
+        if(pValue==NULL){
+        if(!silent)
+            PyErr_Print();
+        Py_DECREF(pMacros_global);
+        sprintf(message, "Failed to convert type int macro %d", i);
+        pyerror(message);
+        }
+        if(PyDict_SetItemString(pMacros_global, macrosInt[i].name, pValue)){
+        if(!silent)
+            PyErr_Print();
+        Py_DECREF(pValue);
+        Py_DECREF(pMacros_global);
+        sprintf(message, "Failed to set dictionary item for type int macro %d", i);
+        pyerror(message);
+        }
+        Py_DECREF(pValue);
+    }
+
+    /* 
+    * Now we open the user's 'model' module:
+    */
+    pName = PyString_FromString(modelNameNoSuffix);
+    if(pName==NULL){
+        if(!silent)
         PyErr_Print();
-      Py_DECREF(pMacros_global);
-      sprintf(message, "Failed to convert type int macro %d", i);
-      pyerror(message);
+        Py_DECREF(pMacros_global);
+        sprintf(message, "Could not convert module name to python string.");
+        pyerror(message);
     }
-    if(PyDict_SetItemString(pMacros_global, macrosInt[i].name, pValue)){
-      if(!silent)
+
+    pModule_global = PyImport_Import(pName);
+    Py_DECREF(pName);
+    if(pModule_global==NULL){
+        if(!silent)
         PyErr_Print();
-      Py_DECREF(pValue);
-      Py_DECREF(pMacros_global);
-      sprintf(message, "Failed to set dictionary item for type int macro %d", i);
-      pyerror(message);
+        Py_DECREF(pMacros_global);
+        sprintf(message, "Failed to load %s", modelName);
+        pyerror(message);
     }
-    Py_DECREF(pValue);
-  }
 
-  /* 
-   * Now we open the user's 'model' module:
-  */
-  pName = PyString_FromString(modelNameNoSuffix);
-  if(pName==NULL){
-    if(!silent)
-      PyErr_Print();
-    Py_DECREF(pMacros_global);
-    sprintf(message, "Could not convert module name to python string.");
-    pyerror(message);
-  }
+    /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
+    /* Read user-supplied parameters from the 'model' module they supply:
+    */
+    status = initParImg(pModule_global, pMacros_global, parTemplate\
+        , nPars, imgParTemplate, nImgPars, &par, &img, &nImages);
+    if(status){
+        Py_DECREF(pMacros_global);
+        Py_DECREF(pModule_global);
+        sprintf(message, "Function initParImg() returned with status %d", status);
+        pyerror(message);
+    }
 
-  pModule_global = PyImport_Import(pName);
-  Py_DECREF(pName);
-  if(pModule_global==NULL){
-    if(!silent)
-      PyErr_Print();
-    Py_DECREF(pMacros_global);
-    sprintf(message, "Failed to load %s", modelName);
-    pyerror(message);
-  }
+    free(imgParTemplate);
+    free(parTemplate);
 
-  /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
-  /* Read user-supplied parameters from the 'model' module they supply:
-  */
-  status = initParImg(pModule_global, pMacros_global, parTemplate\
-    , nPars, imgParTemplate, nImgPars, &par, &img, &nImages);
-  if(status){
-    Py_DECREF(pMacros_global);
-    Py_DECREF(pModule_global);
-    sprintf(message, "Function initParImg() returned with status %d", status);
-    pyerror(message);
-  }
+    /* 
+     * Set up the 'user-supplied' functions (they are left at NULL 
+     * if the user has not supplied them)
+    */
+    getPythonFunc(pModule_global, "density",     1,     &pDensity);
+    getPythonFunc(pModule_global, "temperature", 0, &pTemperature);
+    getPythonFunc(pModule_global, "abundance",   0,   &pAbundance);
+    getPythonFunc(pModule_global, "doppler",     0,     &pDoppler);
+    getPythonFunc(pModule_global, "velocity",    0,    &pVelocity);
+    getPythonFunc(pModule_global, "magfield",    0,    &pMagfield);
+    getPythonFunc(pModule_global, "gasIIdust",   0,   &pGasIIdust);
+    getPythonFunc(pModule_global, "gridDensity", 0, &pGridDensity);
 
-  free(imgParTemplate);
-  free(parTemplate);
+    /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
+    /* Now call the main bit of LIME:
+    */
+    printf("RUNNING LIME \n");
+    status = run(par, img, nImages);
+    printf("FINISH LIME \n");    
+    
+    /* 
+    * Python-object clean up before status check and possible exit.
+    */
+    decrefAllGlobals();
 
-  /* Set up the 'user-supplied' functions (they are left at NULL if the user has not supplied them)
-  */
-  getPythonFunc(pModule_global, "density",     1,     &pDensity);
-  getPythonFunc(pModule_global, "temperature", 0, &pTemperature);
-  getPythonFunc(pModule_global, "abundance",   0,   &pAbundance);
-  getPythonFunc(pModule_global, "doppler",     0,     &pDoppler);
-  getPythonFunc(pModule_global, "velocity",    0,    &pVelocity);
-  getPythonFunc(pModule_global, "magfield",    0,    &pMagfield);
-  getPythonFunc(pModule_global, "gasIIdust",   0,   &pGasIIdust);
-  getPythonFunc(pModule_global, "gridDensity", 0, &pGridDensity);
+    if(status){
+        sprintf(message, "Function run() returned with status %d", status);
+        pyerror(message);
+    }
+    Py_Finalize();
+    freeInputImg(nImages, img);
+    freeInputPars(MAX_NSPECIES, &par);
 
-  /* . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
-  /* Now call the main bit of LIME:
-  */
-  status = run(par, img, nImages);
-
-  /* 
-   * Python-object clean up before status check and possible exit.
-  */
-  decrefAllGlobals();
-
-  if(status){
-    sprintf(message, "Function run() returned with status %d", status);
-    pyerror(message);
-  }
-
-  Py_Finalize();
-
-//  free(par.outputfile);
-//  free(par.binoutputfile);
-//  free(par.gridfile);
-//  free(par.pregrid);
-//  free(par.restart);
-//  free(par.dust);
-
-  freeInputImg(nImages, img);
-  freeInputPars(MAX_NSPECIES, &par);
-
-  return 0;
+    return 0;
 }
 

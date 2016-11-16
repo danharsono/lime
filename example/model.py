@@ -19,19 +19,22 @@ def input(macros):
 
     # Basic parameters. See cheat sheet for details.
     #
-    par.radius            = 2000*macros["AU"]
-    par.minScale          = 0.5*macros["AU"]
-    par.pIntensity        = 4000
-    par.sinkPoints        = 3000
-    par.dust              = "jena_thin_e6.tab"
-    par.moldatfile        = ["hco+@xpol.dat"] # must be a list, even when there is only 1 item.
-    par.antialias         = 4
-    par.sampling          = 2
+    par.radius              = 2000*macros["AU"]
+    par.minScale            = 0.5*macros["AU"]
+    par.pIntensity          = 2000
+    par.sinkPoints          = 1000
+    par.dust                = "jena_thin_e6.tab"
+    par.moldatfile          = ["hco+@xpol.dat"] # must be a list, even when there is only 1 item.
+    par.antialias           = 4
+    par.sampling            = 2
 
-    par.outputfile        = "populations.pop"
-    par.binoutputfile     = "restart.pop"
-    par.gridfile          = "grid.vtk"
-
+    par.outputfile          = "populations.pop"
+    par.binoutputfile       = "restart.pop"
+    par.gridfile            = "grid.vtk"
+    #
+    # NTHREAD here
+    #
+    par.nThreads            = 6
     #    Setting elements of the following three arrays is optional. NOTE
     #    that, if you do set any of their values, you should set as many as
     #    the number of elements returned by your function density(). The
@@ -238,7 +241,6 @@ def velocity(macros, x, y, z):
     vel[1] = -y*ffSpeed/rToUse
     vel[2] = -z*ffSpeed/rToUse
     return vel
-
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 if __name__ == '__main__':
   # Put any private debugging tests here, which you can then run by calling the module directly from the unix command line.
@@ -263,7 +265,6 @@ if __name__ == '__main__':
   }
 
   par = input(macros)
-
   x = par.radius*0.1
   y = par.radius*0.07
   z = par.radius*0.12

@@ -104,7 +104,8 @@ Note that the algorithm employed here is similar to that employed in the functio
   double contJnu,contAlpha,jnu,alpha,lineRedShift,vThisChan,deltav,vfac=0.;
   double remnantSnu,expDTau,brightnessIncrement;
   double projVels[nSteps],d,vel[DIM];
-
+  
+  printf("In tracing the ray...\n");
   for(ichan=0;ichan<img[im].nchan;ichan++){
     ray.tau[ichan]=0.0;
     ray.intensity[ichan]=0.0;
@@ -139,6 +140,7 @@ Note that the algorithm employed here is similar to that employed in the functio
   }
 
   col=0;
+  printf("Calculating the source function\n");
   do{
     ds=-2.*zp-col; /* This default value is chosen to be as large as possible given the spherical model boundary. */
     nposn=-1;
@@ -163,12 +165,16 @@ Note that the algorithm employed here is similar to that employed in the functio
       if(!par->doPregrid){
         for(i=0;i<nSteps;i++){
           d = i*ds*oneOnNSteps;
+          printf("calling velocity...\n");
           velocity(x[0]+(dx[0]*d),x[1]+(dx[1]*d),x[2]+(dx[2]*d),vel);
+          printf("Finish velocity...\n");
           projVels[i] = veloproject(dx,vel);
         }
       }
-
-      /* Calculate first the continuum stuff because it is the same for all channels:
+      printf("FINISH velocity \n");
+      
+      /* 
+       * Calculate first the continuum stuff because it is the same for all channels:
       */
       contJnu = 0.0;
       contAlpha = 0.0;
@@ -193,7 +199,14 @@ Note that the algorithm employed here is similar to that employed in the functio
                 }
 
                 deltav = vThisChan - img[im].source_vel - lineRedShift;
-                /* Line centre occurs when deltav = the recession velocity of the radiating material. Explanation of the signs of the 2nd and 3rd terms on the RHS: (i) A bulk source velocity (which is defined as >0 for the receding direction) should be added to the material velocity field; this is equivalent to subtracting it from deltav, as here. (ii) A positive value of lineRedShift means the line is red-shifted wrt to the frequency specified for the image. The effect is the same as if the line and image frequencies were the same, but the bulk recession velocity were higher. lineRedShift should thus be added to the recession velocity, which is equivalent to subtracting it from deltav, as here. */
+                /* Line centre occurs when deltav = the recession velocity of the radiating material. Explanation of 
+                 *the signs of the 2nd and 3rd terms on the RHS: (i) A bulk source velocity (which is defined as >0 
+                 * for the receding direction) should be added to the material velocity field; this is equivalent to 
+                 * subtracting it from deltav, as here. (ii) A positive value of lineRedShift means the line is 
+                 * red-shifted wrt to the frequency specified for the image. The effect is the same as if the line 
+                 * and image frequencies were the same, but the bulk recession velocity were higher. lineRedShift 
+                 * should thus be added to the recession velocity, which is equivalent to subtracting it from deltav, 
+                 * as here. */
 
                 /* Calculate an approximate average line-shape function at deltav within the Voronoi cell. */
                 if(!par->doPregrid)
@@ -374,8 +387,13 @@ At the moment I will fix the number of segments, but it might possibly be faster
           ray.tau[stokesId]+=dtau; //**** But this will be the same for I, Q or U.
         }
       } else {
-        /* It appears to be necessary to sample the velocity function in the following way rather than interpolating it from the vertices of the Delaunay cell in the same way as with all the other quantities of interest. Velocity varies too much across the cells, and in a nonlinear way, for linear interpolation to yield a totally satisfactory result.
+        /* 
+         * It appears to be necessary to sample the velocity function in the following 
+         * way rather than interpolating it from the vertices of the Delaunay cell in 
+         * the same way as with all the other quantities of interest. Velocity varies 
+         * too much across the cells, and in a nonlinear way, for linear interpolation to yield a totally satisfactory result.
         */
+        printf("Calling the velocity function!\n");
         velocity(gips[2].x[0], gips[2].x[1], gips[2].x[2], vel);
         projVelRay = veloproject(dir, vel);
 
@@ -541,7 +559,7 @@ Note that the argument 'md', and the grid element '.mol', are only accessed for 
   totalNumImagePixels = img[im].pxls*img[im].pxls;
   imgCentreXPixels = img[im].pxls/2.0;
   imgCentreYPixels = img[im].pxls/2.0;
-
+  
   if(img[im].doline){
     /* The user may have set img.trans/img.molI but not img.freq. If so, we calculate freq now.
     */
@@ -562,9 +580,27 @@ Note that the argument 'md', and the grid element '.mol', are only accessed for 
   } /* If not doline, we already have img.freq and nchan by now anyway. */
 
   /*
-We need to calculate or choose a single value of 'local' CMB flux, also single values (i.e. one of each per grid point) of dust and knu, all corresponding the the nominal image frequency. The sensible thing would seem to be to calculate them afresh for each new image; and for continuum images, this is what in fact has always been done. For line images however local_cmb and the dust/knu values were calculated for the frequency of each spectral line and stored respectively in the molData struct and the struct populations element of struct grid. These multiple values (of dust/knu at least) are required during the main solution kernel of LIME, so for line images at least they were kept until the present point, just so one from their number could be chosen. :-/
-
-At the present point in the code, for line images, instead of calculating the 'continuum' values of local_cmb/dust/knu, the algorithm chose the nearest 'line' frequency and calculates the required numbers from that. The intent is to preserve (for the present at least) the former numerical behaviour, while changing the way the information is parcelled out among the variables and structs. I.e. a dedicated 'continuum' pair of dust/knu values is now available for each grid point in addition to the array of spectral line values. This decoupling allows better management of memory and avoids the deceptive use of spectral-line variables for continuum use.
+   * We need to calculate or choose a single value of 'local' CMB flux, also 
+   * single values (i.e. one of each per grid point) of dust and knu, all 
+   * corresponding the the nominal image frequency. The sensible thing would 
+   * seem to be to calculate them afresh for each new image; and for continuum 
+   * images, this is what in fact has always been done. For line images however 
+   * local_cmb and the dust/knu values were calculated for the frequency of 
+   * each spectral line and stored respectively in the molData struct and the 
+   * struct populations element of struct grid. These multiple values (of 
+   * dust/knu at least) are required during the main solution kernel of LIME, so 
+   * for line images at least they were kept until the present point, just so one 
+   * from their number could be chosen. :-/
+   * 
+   * At the present point in the code, for line images, instead of calculating 
+   * the 'continuum' values of local_cmb/dust/knu, the algorithm chose the nearest 
+   * 'line' frequency and calculates the required numbers from that. The intent is 
+   * to preserve (for the present at least) the former numerical behaviour, while 
+   * changing the way the information is parcelled out among the variables and 
+   * structs. I.e. a dedicated 'continuum' pair of dust/knu values is now available 
+   * for each grid point in addition to the array of spectral line values. This 
+   * decoupling allows better management of memory and avoids the deceptive use 
+   * of spectral-line variables for continuum use.
   */
   if(img[im].doline){
     if (img[im].trans>=0){
@@ -598,14 +634,26 @@ At the present point in the code, for line images, instead of calculating the 'c
       img[im].pixel[ppi].tau[    ichan] = 0.0;
     }
   }
-
+  
   for(ppi=0;ppi<totalNumImagePixels;ppi++)
     img[im].pixel[ppi].numRays = 0;
 
   /*
-The set of rays which we plan to follow is taken from the set of (non-sink) grid points, projected onto a plane parallel to the observer's X and Y axes with Z coordinate on the observer's side of the model (because solution of the raytracing equations requires that iterate 'backwards' through the model). In addition to these points we will add another tranche located on a circle in this plane with its centre at (X,Y) == (0,0) and radius equal to the model radius. Addition of these circle points seems to be necessary to make qhull behave properly. We choose evenly-spaced points on this circle and choose the spacing such that it is the same as the average nearest-neighbour spacing of the grid points, assuming the grid points were evenly distributed within the circle.
-
-How to calculate this distance? Well if we have N points randomly but evenly distributed inside a circle of radius R it is not hard to show that the mean NN spacing is G(3/2)*R/sqrt(N), where G() is the gamma function. In fact G(3/2)=sqrt(pi)/2. This will add about 4*sqrt(pi*N) points.
+   * The set of rays which we plan to follow is taken from the set of (non-sink) 
+   * grid points, projected onto a plane parallel to the observer's X and Y axes 
+   * with Z coordinate on the observer's side of the model (because solution of the 
+   * raytracing equations requires that iterate 'backwards' through the model). In 
+   * addition to these points we will add another tranche located on a circle in this 
+   * plane with its centre at (X,Y) == (0,0) and radius equal to the model radius. 
+   * Addition of these circle points seems to be necessary to make qhull behave properly. 
+   * We choose evenly-spaced points on this circle and choose the spacing such that it 
+   * is the same as the average nearest-neighbour spacing of the grid points, assuming 
+   * the grid points were evenly distributed within the circle.
+   * 
+   * How to calculate this distance? Well if we have N points randomly but evenly 
+   * distributed inside a circle of radius R it is not hard to show that the mean NN 
+   * spacing is G(3/2)*R/sqrt(N), where G() is the gamma function. In fact G(3/2)=sqrt(pi)/2. 
+   * This will add about 4*sqrt(pi*N) points.
   */
   circleSpacing = 0.5*par->radius*sqrt(PI/(double)par->pIntensity);
   numCircleRays = (int)(2.0*PI*par->radius/circleSpacing);
@@ -627,7 +675,8 @@ How to calculate this distance? Well if we have N points randomly but evenly dis
     locateRayOnImage(xs, size, imgCentreXPixels, imgCentreYPixels, img, im, maxNumRaysPerPixel, rays, &numActiveRaysInternal);
   } /* End loop 1, over grid points. */
 
-  /* Add the circle rays:
+  /* 
+   * Add the circle rays:
   */
   numActiveRays = numActiveRaysInternal;
   scale = 2.0*PI/(double)numCircleRays;
@@ -646,7 +695,10 @@ How to calculate this distance? Well if we have N points randomly but evenly dis
   if(par->traceRayAlgorithm==1){
     delaunay(DIM, gp, (unsigned long)par->ncell, 1, &dc, &numCells); /* mallocs dc if getCells==T */
 
-    /* We need to process the list of cells a bit further - calculate their centres, and reset the id values to be the same as the index of the cell in the list. (This last because we are going to construct other lists to indicate which cells have been visited etc.)
+    /* 
+     * We need to process the list of cells a bit further - calculate their centres, and reset 
+     * the id values to be the same as the index of the cell in the list. (This last because 
+     * we are going to construct other lists to indicate which cells have been visited etc.)
     */
     for(dci=0;dci<numCells;dci++){
       for(di=0;di<DIM;di++){
@@ -665,15 +717,19 @@ How to calculate this distance? Well if we have N points randomly but evenly dis
     exit(1);
   }
 
-  /* This is the start of loop 2/3, which loops over the rays. We trace each ray, then load into the image cube those for which the number of rays per pixel exceeds a minimum. The remaining image pixels we handle via an interpolation algorithm in loop 3.
+  /* 
+   * This is the start of loop 2/3, which loops over the rays. We trace each ray, 
+   * then load into the image cube those for which the number of rays per pixel 
+   * exceeds a minimum. The remaining image pixels we handle via an interpolation algorithm in loop 3.
   */
   defaultErrorHandler = gsl_set_error_handler_off();
   /*
-The GSL documentation does not recommend leaving the error handler at the default within multi-threaded code.
-
-While this is off however, gsl_* calls will not exit if they encounter a problem. We may need to pay some attention to trapping their errors.
+   * The GSL documentation does not recommend leaving the error handler at the default within multi-threaded code.
+   * While this is off however, gsl_* calls will not exit if they encounter a problem. We may need to pay some attention 
+   * to trapping their errors.
   */
-
+  
+  printf("Starting the multiThread options\n");
   omp_set_dynamic(0);
   #pragma omp parallel num_threads(par->nThreads)
   {
@@ -702,6 +758,7 @@ While this is off however, gsl_* calls will not exit if they encounter a problem
           gips[ii].mol = NULL;
       }
     }
+    printf("Starting raytrace\n");
 
     #pragma omp for schedule(dynamic)
     for(ri=0;ri<numActiveRays;ri++){
@@ -718,6 +775,7 @@ While this is off however, gsl_* calls will not exit if they encounter a problem
         if(!silent) progressbar((double)(ri)*oneOnNumActiveRaysMinus1, 13);
       }
     }
+    printf("Finish raytrace\n");
 
     if(par->traceRayAlgorithm==1){
       for(ii=0;ii<numInterpPoints;ii++)
