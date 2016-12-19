@@ -10,8 +10,6 @@
 #ifndef LIME_H
 #define LIME_H
 
-#include "inpars.h"
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -43,8 +41,9 @@
 #define omp_set_dynamic(int) 0
 #endif
 
-#define DIM 3
-#define VERSION	"1.6.1"
+#include "dims.h"
+
+#define VERSION	"1.7"
 #define DEFAULT_NTHREADS 1
 #ifndef NTHREADS /* Value passed from the LIME script */
 #define NTHREADS DEFAULT_NTHREADS
@@ -70,34 +69,31 @@
 #define PI                      3.14159265358979323846	/* pi	*/
 #define SPI                     1.77245385091		/* sqrt(pi)	*/
 #define maxp                    0.15
-#define OtoP                    3.
-#define NITERATIONS             16
-#define max_phot                10000		/* don't set this value higher unless you have enough memory. */
-#define ininphot                9
+#define NITERATIONS 		16
+#define MAX_RAYS_PER_POINT      10000
+#define RAYS_PER_POINT		200
 #define minpop                  1.e-6
 #define eps                     1.0e-30
 #define TOL                     1e-6
 #define MAXITER                 50
 #define goal                    50
 #define fixset                  1e-6
-#define maxBlendDeltaV		1.e4		/* m/s */
-#define NUM_VEL_COEFFS		5
+#define maxBlendDeltaV          1.e4		/* m/s */
 #define MAX_NSPECIES            100
 #define MAX_NIMAGES             100
 #define N_RAN_PER_SEGMENT       3
 #define FAST_EXP_MAX_TAYLOR	3
 #define FAST_EXP_NUM_BITS	8
+#define NUM_GRID_STAGES		4
 #define MAX_N_COLL_PART		7
 #define N_SMOOTH_ITERS          20
 #define TYPICAL_ISM_DENS        1000.0
-<<<<<<< HEAD
 #define ERF_TABLE_LIMIT		6.0             /* For x>6 erf(x)-1<double precision machine epsilon, so no need to store the values for larger x. */
 #define ERF_TABLE_SIZE		6145
 #define BIN_WIDTH		(ERF_TABLE_LIMIT/(ERF_TABLE_SIZE-1.))
-#define IBIN_WIDTH 		1./BIN_WIDTH
-=======
-#define STR_LEN_0               80
->>>>>>> remotes/ims/imspython
+#define IBIN_WIDTH 		(1./BIN_WIDTH)
+#define N_VEL_SEG_PER_HALF	1
+#define NUM_VEL_COEFFS		(1+2*N_VEL_SEG_PER_HALF) /* This is the number of velocity samples per edge (not including the grid vertices at each end of the edge). Currently this is elsewhere hard-wired at 3, the macro just being used in the file I/O modules. Note that we want an odd number of velocity samples per edge if we want to have the ability to do 2nd-order interpolation of velocity within Delaunay tetrahedra. */
 
 /* Collision partner ID numbers from LAMDA */
 #define CP_H2			1
@@ -108,13 +104,44 @@
 #define CP_He			6
 #define CP_Hplus		7
 
+/* Bit locations for the grid data-stage mask, that records the information which is present in the grid struct: */
+#define DS_bit_x             0	/* id, x, sink */
+#define DS_bit_neighbours    1	/* neigh, dir, ds, numNeigh */
+#define DS_bit_velocity      2	/* vel */
+#define DS_bit_density       3	/* dens */
+#define DS_bit_abundance     4	/* abun, nmol */
+#define DS_bit_turb_doppler  5	/* dopb */
+#define DS_bit_temperatures  6	/* t */
+#define DS_bit_magfield      7	/* B */
+#define DS_bit_ACOEFF        8	/* a0, a1, a2, a3, a4 */
+#define DS_bit_populations   9	/* mol */
+
+#define DS_mask_x             1<<DS_bit_x
+#define DS_mask_neighbours   (1<<DS_bit_neighbours   | DS_mask_x)
+#define DS_mask_velocity     (1<<DS_bit_velocity     | DS_mask_x)
+#define DS_mask_density      (1<<DS_bit_density      | DS_mask_x)
+#define DS_mask_abundance    (1<<DS_bit_abundance    | DS_mask_x)
+#define DS_mask_turb_doppler (1<<DS_bit_turb_doppler | DS_mask_x)
+#define DS_mask_temperatures (1<<DS_bit_temperatures | DS_mask_x)
+#define DS_mask_magfield     (1<<DS_bit_magfield     | DS_mask_x)
+#define DS_mask_ACOEFF       (1<<DS_bit_ACOEFF       | DS_mask_neighbours | DS_mask_velocity)
+
+#define DS_mask_1            DS_mask_x
+#define DS_mask_2            DS_mask_neighbours
+#define DS_mask_3            (DS_mask_2|DS_mask_density|DS_mask_abundance|DS_mask_turb_doppler|DS_mask_temperatures|DS_mask_ACOEFF)
+#define DS_mask_populations  (1<<DS_bit_populations | DS_mask_3)
+#define DS_mask_4            DS_mask_populations
+#define DS_mask_all          (DS_mask_populations | DS_mask_magfield)
+#define DS_mask_all_but_mag  DS_mask_all & ~(1<<DS_bit_magfield)
+
+#include "inpars.h"
 
 typedef struct {
   double radius,minScale,tcmb,*nMolWeights,*dustWeights;
-  double radiusSqu,minScaleSqu,taylorCutoff;
-  int sinkPoints,pIntensity,blend,*collPartIds,traceRayAlgorithm;
-  int ncell,nImages,nSpecies,numDensities,doPregrid;
-  char *outputfile, *binoutputfile;
+  double radiusSqu,minScaleSqu,taylorCutoff,gridDensGlobalMax;
+  int sinkPoints,pIntensity,blend,*collPartIds,traceRayAlgorithm,samplingAlgorithm;
+  int ncell,nImages,nSpecies,numDensities,doPregrid,numGridDensMaxima;
+  char *outputfile,*binoutputfile;
   char *gridfile;
   char *pregrid;
   char *restart;
@@ -122,6 +149,10 @@ typedef struct {
   int sampling,lte_only,init_lte,antialias,polarization,nThreads,numDims;
   int nLineImages, nContImages;
   char **moldatfile;
+  _Bool writeGridAtStage[NUM_GRID_STAGES], resetRNG;
+  char *gridInFile,**gridOutFiles;
+  int dataFlags,nSolveIters;
+  double (*gridDensMaxLoc)[DIM], *gridDensMaxValues;
 } configInfo;
 
 struct cpData {
@@ -143,10 +174,6 @@ typedef struct {
 typedef struct {
   double *jbar,*phot,*vfac,*vfac_loc;
 } gridPointData;
-
-typedef struct {
-  double *intensity;
-} surfRad;
 
 /* Point coordinate */
 typedef struct {
@@ -252,30 +279,8 @@ struct cell {
   double centre[DIM];
 };
 
-/* This struct is meant to record all relevant information about the intersection between a ray (defined by a direction unit vector 'dir' and a starting position 'r') and a face of a Delaunay cell.
-*/
-typedef struct {
-  int fi;
-  /* The index (in the range {0...DIM}) of the face (and thus of the opposite vertex, i.e. the one 'missing' from the bary[] list of this face).
-  */
-  int orientation;
-  /* >0 means the ray exits, <0 means it enters, ==0 means the face is parallel to ray.
-  */
-  double bary[DIM], dist, collPar;
-  /* 'dist' is defined via r_int = r + dist*dir. 'collPar' is a measure of how close to any edge of the face r_int lies.
-  */
-} intersectType;
-
-typedef struct {
-  double r[DIM][DIM], centre[DIM];/*, norm[3], mat[1][1], det; */
-} faceType;
-
-typedef struct {
-  double xAxis[DIM], yAxis[DIM], r[3][2];
-} triangle2D;
-
 /* Some global variables */
-int silent;
+extern int silent;
 
 /* User-specifiable functions */
 void density(double,double,double,double *);
@@ -288,12 +293,10 @@ void gasIIdust(double,double,double,double *);
 double gridDensity(configInfo*, double*);
 
 /* More functions */
-int	run(inputPars, image*, const int);
+void	run(inputPars, image *);
 
 void	assignMolCollPartsToDensities(configInfo*, molData*);
 void	binpopsout(configInfo*, struct grid*, molData*);
-void	buildGrid(configInfo *, struct grid *);
-int	buildRayCellChain(double*, double*, struct grid*, struct cell*, _Bool**, unsigned long, int, int, int, const double, unsigned long**, intersectType**, int*);
 void	calcFastExpRange(const int, const int, int*, int*, int*);
 void	calcGridCollRates(configInfo*, molData*, struct grid*);
 void	calcGridContDustOpacity(configInfo*, const double, double*, double*, const int, struct grid*);
@@ -303,33 +306,24 @@ void	calcGridMolDoppler(configInfo*, molData*, struct grid*);
 void	calcGridMolSpecNumDens(configInfo*, molData*, struct grid*);
 void	calcInterpCoeffs(configInfo*, struct grid*);
 void	calcInterpCoeffs_lin(configInfo*, struct grid*);
-void	calcLineAmpInterp(const double, const double, const double, double*);
-void	calcLineAmpSample(const double x[3], const double dx[3], const double, const double, double*, const int, const double, const double, double*);
 void	calcMolCMBs(configInfo*, molData*);
 void	calcSourceFn(double, const configInfo*, double*, double*);
 void	calcTableEntries(const int, const int);
-void	calcTriangleBaryCoords(double vertices[3][2], double, double, double barys[3]);
-triangle2D calcTriangle2D(faceType);
 void	checkGridDensities(configInfo*, struct grid*);
 void	checkUserDensWeights(configInfo*);
-void	delaunay(const int, struct grid*, const unsigned long, const _Bool, struct cell**, unsigned long*);
+void	delaunay(const int, struct grid*, const unsigned long, const _Bool, const _Bool, struct cell**, unsigned long*);
 void	distCalc(configInfo*, struct grid*);
-void	doBaryInterp(const intersectType, struct grid*, double*, unsigned long*, molData*, const int, gridInterp*);
-void	doSegmentInterp(gridInterp*, const int, molData*, const int, const double, const int);
-faceType extractFace(struct grid*, struct cell*, const unsigned long, const int);
+double	dotProduct3D(const double*, const double*);
 int	factorial(const int);
 double	FastExp(const float);
 void    fillErfTable();
 void	fit_d1fi(double, double, double*);
 void	fit_fi(double, double, double*);
 void	fit_rr(double, double, double*);
-int	followRayThroughDelCells(double*, double*, struct grid*, struct cell*, const unsigned long, const double, intersectType*, unsigned long**, intersectType**, int*);
-void	freeConfigInfo(configInfo);
+void	freeConfigInfo(configInfo par);
 void	freeGrid(const unsigned int, const unsigned short, struct grid*);
-void	freeGridPointData(configInfo*, gridPointData*);
-void	freeImg(const int, imageInfo*);
-void	freeInputImg(const int, image*);
-void	freeInputPars(const int, inputPars*);
+void	freeGridPointData(const int, gridPointData*);
+void	freeImgInfo(const int, imageInfo*);
 void	freeMolData(const int, molData*);
 void	freeMolsWithBlends(struct molWithBlends*, const int);
 void	freePopulation(const unsigned short, struct populations*);
@@ -340,17 +334,13 @@ void	getclosest(double, double, double, long*, long*, double*, double*, double*)
 void	getjbar(int, molData*, struct grid*, const int, configInfo*, struct blendInfo, int, gridPointData*, double*);
 void	getMass(configInfo*, struct grid*, const gsl_rng*);
 void	getmatrix(int, gsl_matrix*, molData*, struct grid*, int, gridPointData*);
-int	getNewEntryFaceI(const unsigned long, const struct cell);
-int	getNextEdge(double*, int, struct grid*, const gsl_rng*);
 void	getVelocities(configInfo *, struct grid *);
 void	getVelocities_pregrid(configInfo *, struct grid *);
-void	input(inputPars*, image*);
 void	gridPopsInit(configInfo*, molData*, struct grid*);
+void	input(inputPars*, image*);
 double	interpolateKappa(const double, double*, double*, const int, gsl_spline*, gsl_interp_accel*);
-void	intersectLineTriangle(double*, double*, faceType, intersectType*);
 float	invSqrt(float);
 void	levelPops(molData*, configInfo*, struct grid*, int*, double*, double*, const int);
-void	line_plane_intersect(struct grid*, double*, int, int*, double*, double*, double);
 void	lineBlend(molData*, configInfo*, struct blendInfo*);
 void	LTE(configInfo*, struct grid*, molData*);
 void	lteOnePoint(molData*, const int, const double, double*);
@@ -358,19 +348,20 @@ void	mallocAndSetDefaultGrid(struct grid**, const unsigned int);
 void	mallocInputPars(inputPars*);
 void	molInit(configInfo*, molData*);
 void	openSocket(char*);
-void	parseInput(inputPars, image*, configInfo*, imageInfo**, molData**);
+void	parseInput(inputPars, configInfo*, image**, molData**);
 void	photon(int, struct grid*, molData*, int, const gsl_rng*, configInfo*, const int, struct blendInfo, gridPointData*, double*);
 double	planckfunc(const double, const double);
 int	pointEvaluation(configInfo*, const double, double*);
 void	popsin(configInfo*, struct grid**, molData**, int*);
 void	popsout(configInfo*, struct grid*, molData*);
 void	predefinedGrid(configInfo*, struct grid*);
+void	processFitsError(int);
 double	ratranInput(char*, char*, double, double, double);
 void	raytrace(int, configInfo*, struct grid*, molData*, imageInfo*, double*, double*, const int);
 void	readDummyCollPart(FILE*, const int);
 void	readDustFile(char*, double**, double**, int*);
 void	readMolData(configInfo*, molData*, int**, int*);
-void	readUserInput(inputPars*, imageInfo**, int*, int*);
+void	readUserInput(inputPars*, image**, int*, int*);
 void	report(int, configInfo*, struct grid*);
 void	setUpConfig(configInfo*, imageInfo**, molData**);
 void	setUpDensityAux(configInfo*, int*, const int);
@@ -382,21 +373,10 @@ void	stateq(int, struct grid*, molData*, const int, configInfo*, struct blendInf
 void	statistics(int, molData*, struct grid*, int*, double*, double*, int*);
 void	stokesangles(double*, double (*rotMat)[3], double*);
 double	taylor(const int, const float);
-<<<<<<< HEAD
-void	traceray(rayData, const double, const int, configInfo*, struct grid*, molData*, image*, const double, const int, const double);
-void	traceray_smooth(rayData, const double, const int, configInfo*, struct grid*, molData*, image*, struct cell*, const unsigned long, const double, gridInterp gips[3], const int, const double, const int, const double);
-double	veloproject(const double*, const double*);
-void	write2Dfits(int, configInfo*, molData*, image*);
-void	write3Dfits(int, configInfo*, molData*, image*);
-void	writeFits(const int, configInfo*, molData*, image*);
-=======
-void	traceray(rayData, const double, const int, configInfo*, struct grid*, molData*, imageInfo*, const double, const int, const double);
-void	traceray_smooth(rayData, const double, const int, configInfo*, struct grid*, molData*, imageInfo*, struct cell*, const unsigned long, const double, gridInterp gips[3], const int, const double, const int, const double);
-double	veloproject(double*, double*);
-void	write2Dfits(int, configInfo*, molData*, imageInfo*);
-void	write3Dfits(int, configInfo*, molData*, imageInfo*);
-void	writeFits(const int, configInfo*, molData*, imageInfo*);
->>>>>>> remotes/ims/imspython
+void	write2Dfits(int, configInfo*, imageInfo*);
+void	write3Dfits(int, configInfo*, imageInfo*);
+void	writeFits(const int, configInfo*, imageInfo*);
+void	writeGridIfRequired(configInfo*, struct grid*, molData*, const int);
 void	write_VTK_unstructured_Points(configInfo*, struct grid*);
 
 
@@ -407,23 +387,22 @@ void	casaStyleProgressBar(const int, int);
 void	collpartmesg(char*, int);
 void	collpartmesg2(char*, int);
 void	collpartmesg3(int, int);
-void	error(char*);
 void	goodnight(int, char*);
-void	greetings();
+void	greetings(void);
 void	greetings_parallel(int);
 void	printDone(int);
 void	printMessage(char *);
 void	progressbar(double, int);
-void	progressbar2(int, int, double, double, double);
+void	progressbar2(configInfo*, int, int, double, double, double);
 void	quotemass(double);
-void	screenInfo();
+void	screenInfo(void);
 void	warning(char*);
 
 #ifdef FASTEXP
 extern double EXP_TABLE_2D[128][10];
 extern double EXP_TABLE_3D[256][2][10];
 #else
-extern double EXP_TABLE_2D[1][1]; // nominal definitions so the fastexp.c module will compile.
+extern double EXP_TABLE_2D[1][1]; /* nominal definitions so the fastexp.c module will compile. */
 extern double EXP_TABLE_3D[1][1][1];
 #endif
 

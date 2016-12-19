@@ -6,8 +6,12 @@
  *  Copyright (C) 2015-2016 The LIME development team
  *
  */
-#include "lime.h"
+#include <locale.h>
 
+#include "lime.h"
+#include "gridio.h"
+
+int silent = 0;
 
 /* Forward declaration of functions only used in this file */
 int initParImg(inputPars *par, image **img);
@@ -22,7 +26,7 @@ double EXP_TABLE_3D[256][2][10];
   calcFastExpRange(FAST_EXP_MAX_TAYLOR, FAST_EXP_NUM_BITS, &numMantissaFields, &lowestExponent, &numExponentsUsed)
 */
 #else
-double EXP_TABLE_2D[1][1]; // nominal definitions so the fastexp.c module will compile.
+double EXP_TABLE_2D[1][1]; /* nominal definitions so the fastexp.c module will compile. */
 double EXP_TABLE_3D[1][1][1];
 #endif
 
@@ -39,7 +43,7 @@ initParImg(inputPars *par, image **img)
      par and image values.
   */
 
-  int i,id,nImages;
+  int i,j,id,nImages;
   const double defaultAngle=-999.0;
 
   /* Set 'impossible' default values for mandatory parameters */
@@ -55,20 +59,44 @@ initParImg(inputPars *par, image **img)
   par->gridfile     = NULL;
   par->pregrid      = NULL;
   par->restart      = NULL;
+  par->gridInFile   = NULL;
 
-  par->tcmb = 2.728;
+  par->collPartIds  = malloc(sizeof(int)*MAX_N_COLL_PART);
+  for(i=0;i<MAX_N_COLL_PART;i++) par->collPartIds[i] = 0;
+  par->nMolWeights  = malloc(sizeof(double)*MAX_N_COLL_PART);
+  for(i=0;i<MAX_N_COLL_PART;i++) par->nMolWeights[i] = -1.0;
+  par->dustWeights  = malloc(sizeof(double)*MAX_N_COLL_PART);
+  for(i=0;i<MAX_N_COLL_PART;i++) par->dustWeights[i] = -1.0;
+
+  par->gridDensMaxValues = malloc(sizeof(*(par->gridDensMaxValues))*MAX_N_HIGH);
+  par->gridDensMaxLoc    = malloc(sizeof(*(par->gridDensMaxLoc))*MAX_N_HIGH);
+  for(i=0;i<MAX_N_HIGH;i++){
+    par->gridDensMaxValues[i] = -1.0; /* Impossible default value. */
+    for(j=0;j<DIM;j++) par->gridDensMaxLoc[i][j] = 0.0;
+  }
+
+  par->tcmb = 2.725;
   par->lte_only=0;
   par->init_lte=0;
-  par->sampling=2;
+  par->samplingAlgorithm=0;
+  par->sampling=2; /* Now only accessed if par->samplingAlgorithm==0. */
   par->blend=0;
   par->antialias=1;
   par->polarization=0;
   par->nThreads = NTHREADS;
+  par->nSolveIters=17;
   par->traceRayAlgorithm=0;
+  par->resetRNG=0;
+
+  par->gridOutFiles = malloc(sizeof(char *)*NUM_GRID_STAGES);
+  for(i=0;i<NUM_GRID_STAGES;i++)
+    par->gridOutFiles[i] = NULL;
 
   /* Allocate initial space for molecular data file names */
-  for(id=0;id<MAX_NSPECIES;id++)
+  par->moldatfile=malloc(sizeof(char *)*MAX_NSPECIES);
+  for(id=0;id<MAX_NSPECIES;id++){
     par->moldatfile[id]=NULL;
+  }
 
   /* Allocate initial space for output fits images */
   (*img)=malloc(sizeof(**img)*MAX_NIMAGES);
@@ -110,11 +138,9 @@ initParImg(inputPars *par, image **img)
   return nImages;
 }
 
-<<<<<<< HEAD
 
 void
-run(inputPars inpars, image *img)
-{
+run(inputPars inpars, image *inimg, const int nImages){
   /* Run LIME with inpars and the output fits files specified.
 
      This routine may be used as an interface to LIME from external
@@ -124,9 +150,10 @@ run(inputPars inpars, image *img)
   int i,gi,si;
   int initime=time(0);
   int popsdone=0;
-  molData*     md = NULL;
-  configInfo  par;
-  struct grid* gp = NULL;
+  molData *md=NULL;
+  configInfo par;
+  imageInfo *img=NULL;
+  struct grid *gp=NULL;
   char message[80];
   int nEntries=0;
   double *lamtab=NULL, *kaptab=NULL; 
@@ -142,46 +169,42 @@ run(inputPars inpars, image *img)
 #endif
   fillErfTable();
 
-  parseInput(inpars, &par, &img, &md); /* Sets par.numDensities for !(par.doPregrid || par.restart) */
+  parseInput(inpars, inimg, nImages, &par, &img, &md); /* Sets par.numDensities for !(par.doPregrid || par.restart) */
 
   if(!silent && par.nThreads>1){
     sprintf(message, "Number of threads used: %d", par.nThreads);
     printMessage(message);
   }
 
-  if(par.doPregrid)
-    {
-      mallocAndSetDefaultGrid(&gp, (unsigned int)par.ncell);
-      predefinedGrid(&par,gp); /* Sets par.numDensities */
-      checkUserDensWeights(&par); /* Needs par.numDensities */
-    }
-  else if(par.restart)
-    {
-      popsin(&par,&gp,&md,&popsdone);
-    }
-  else
-    {
-      checkUserDensWeights(&par); /* Needs par.numDensities */
-      mallocAndSetDefaultGrid(&gp, (unsigned int)par.ncell);
-      buildGrid(&par,gp);
-    }
+  if(par.doPregrid){
+    mallocAndSetDefaultGrid(&gp, (unsigned int)par.ncell);
+    predefinedGrid(&par,gp); /* Sets par.numDensities */
+    checkUserDensWeights(&par); /* Needs par.numDensities */
+  }else if(par.restart){
+    popsin(&par,&gp,&md,&popsdone);
+  }else{
+    checkUserDensWeights(&par); /* Needs par.numDensities */
+    readOrBuildGrid(&par,&gp);
+  }
 
   if(par.dust != NULL)
     readDustFile(par.dust, &lamtab, &kaptab, &nEntries);
 
   /* Make all the continuum images:
   */
-  for(i=0;i<par.nImages;i++){
-    if(!img[i].doline){
-      raytrace(i, &par, gp, md, img, lamtab, kaptab, nEntries);
-      writeFits(i,&par,md,img);
+  if(par.nContImages>0){
+    for(i=0;i<par.nImages;i++){
+      if(!img[i].doline){
+        raytrace(i, &par, gp, md, img, lamtab, kaptab, nEntries);
+        writeFits(i,&par,img);
+      }
     }
   }
 
   if(par.nLineImages>0){
     molInit(&par, md);
 
-    if(!popsdone){
+    if(!popsdone && !allBitsSet(par.dataFlags, DS_mask_populations)){
       for(gi=0;gi<par.ncell;gi++){
         gp[gi].mol = malloc(sizeof(*(gp[gi].mol))*par.nSpecies);
         for(si=0;si<par.nSpecies;si++){
@@ -199,20 +222,25 @@ run(inputPars inpars, image *img)
     calcGridMolDoppler(&par, md, gp);
     calcGridMolDensities(&par,gp);
 
-    if(!popsdone)
+    if(!popsdone && !allBitsSet(par.dataFlags, DS_mask_populations))
       levelPops(md, &par, gp, &popsdone, lamtab, kaptab, nEntries);
 
     calcGridMolSpecNumDens(&par,md,gp);
   }
-
+  /*
+  report(1,&par,gp);
+  */
+  writeGridIfRequired(&par, gp, md, lime_FITS);
   freeSomeGridFields((unsigned int)par.ncell, (unsigned short)par.nSpecies, gp);
 
-  /* Now make the line images.
-  */
-  for(i=0;i<par.nImages;i++){
-    if(img[i].doline){
-      raytrace(i, &par, gp, md, img, lamtab, kaptab, nEntries);
-      writeFits(i,&par,md,img);
+  /* Now make the line images.   */
+
+  if(par.nLineImages>0){
+    for(i=0;i<par.nImages;i++){
+      if(img[i].doline){
+        raytrace(i, &par, gp, md, img, lamtab, kaptab, nEntries);
+        writeFits(i,&par,img);
+      }
     }
   }
   
@@ -220,10 +248,8 @@ run(inputPars inpars, image *img)
 
   freeGrid((unsigned int)par.ncell, (unsigned short)par.nSpecies, gp);
   freeMolData(par.nSpecies, md);
-  free(par.moldatfile);
-  free(par.collPartIds);
-  free(par.nMolWeights);
-  free(par.dustWeights);
+  freeImgInfo(par.nImages, img);
+  freeConfigInfo(par);
 
   if(par.dust != NULL){
     free(kaptab);
@@ -231,26 +257,17 @@ run(inputPars inpars, image *img)
   }
 }
 
-=======
->>>>>>> remotes/ims/imspython
 int main () {
   /* Main program for stand-alone LIME */
 
   inputPars par;
-  image *img = NULL;
-  int nImages, status=0;
-  char message[STR_LEN_0];
-
-  silent = 0;
+  image	*img = NULL;
+  int nImages;
 
   mallocInputPars(&par);
   nImages = initParImg(&par, &img);
 
-  status = run(par, img, nImages);
-  if(status){
-    sprintf(message, "Function run() returned with status %d", status);
-    error(message);
-  }
+  run(par, img);
 
   free(img);
   free(par.collPartIds);

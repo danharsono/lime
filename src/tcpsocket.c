@@ -28,14 +28,16 @@ openSocket(char *moldatfile){
   char *page = "~moldata/datafiles/";
   char *tpl= "GET /%s HTTP/1.0\r\nHost: %s\r\nUser-Agent: %s\r\n\r\n";
   FILE *fp;
+  char *suffix = ".dat";
+  const int lenSuffix = strlen(suffix);
 
-  // Check if moldatfile contains .dat
-  if(strstr(moldatfile, ".dat") == NULL){
+  /* Check if moldatfile contains .dat */
+  if(strstr(moldatfile, suffix) == NULL){
     size_t length = strlen(moldatfile);
-    s = (char*)malloc(sizeof(char) * (length + 5));
+    s = (char*)malloc(sizeof(char)*(length + lenSuffix + 1));
     strcpy(s,moldatfile);
-    strcat(s, ".dat");
-    s[length+4]='\0';
+    strcat(s, suffix);
+    s[length+lenSuffix]='\0';
     moldatfile=s;
   }
 
@@ -47,7 +49,7 @@ openSocket(char *moldatfile){
   page=t;
 
 
-  // Create socket (similar to open file)
+  /* Create socket (similar to open file) */
   if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
     if(!silent) bail_out("Can't create TCP socket");
     exit(1);
@@ -70,13 +72,13 @@ openSocket(char *moldatfile){
     exit(1);
   }
 
-  // -5 is to consider the %s %s %s in tpl and the ending \0
+  /* -5 is to consider the %s %s %s in tpl and the ending \0 */
   get = (char *)malloc(strlen(host)+strlen(page)+strlen(USERAGENT)+strlen(tpl)-5);
   sprintf(get, tpl, page, host, USERAGENT);
 
   //fprintf(stderr, "Query is:\n<<START>>\n%s<<END>>\n", get);
 
-  //Send the query to the server
+  /* Send the query to the server */
   int sent = 0;
   while(sent < strlen(get)){
     tmpres = send(sock, get+sent, strlen(get)-sent, 0);

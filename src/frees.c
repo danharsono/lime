@@ -30,13 +30,17 @@ freeConfigInfo(configInfo par){
   }
 }
 
-void freeGrid(const unsigned int numPoints, const unsigned short numSpecies\
+void
+freeGrid(const unsigned int numPoints, const unsigned short numSpecies\
   , struct grid *gp){
 
   unsigned int i_u;
 
   if(gp != NULL){
     for(i_u=0;i_u<numPoints;i_u++){
+      free(gp[i_u].v1);
+      free(gp[i_u].v2);
+      free(gp[i_u].v3);
       free(gp[i_u].dir);
       free(gp[i_u].neigh);
       free(gp[i_u].w);
@@ -50,10 +54,10 @@ void freeGrid(const unsigned int numPoints, const unsigned short numSpecies\
 }
 
 void
-freeGridPointData(configInfo *par, gridPointData *mol){
+freeGridPointData(const int nSpecies, gridPointData *mol){
   int i;
   if(mol!= NULL){
-    for(i=0;i<par->nSpecies;i++){
+    for(i=0;i<nSpecies;i++){
       free(mol[i].jbar);
       free(mol[i].phot);
       free(mol[i].vfac);
@@ -64,7 +68,7 @@ freeGridPointData(configInfo *par, gridPointData *mol){
 }
 
 void
-freeImg(const int nImages, imageInfo *img){
+freeImgInfo(const int nImages, imageInfo *img){
   int i,id;
   for(i=0;i<nImages;i++){
     for(id=0;id<(img[i].pxls*img[i].pxls);id++){
@@ -75,45 +79,6 @@ freeImg(const int nImages, imageInfo *img){
     free(img[i].filename);
   }
   free(img);
-}
-
-void
-freeInputImg(const int nImages, image *img){
-  /*
-In 'standard' LIME the user copies the location of a (read-only) string to img[i].filename. Trying to free img[i].filename then results in an error. However the projected python version will malloc img[i].filename and copy string characters into that memory space. It is for this purpose that we preserve the present function.
-  */
-  int i;
-
-  if(img!=NULL){
-    for(i=0;i<nImages;i++)
-      free(img[i].filename);
-    free(img);
-  }
-}
-
-void
-freeInputPars(const int nSpecies, inputPars *par){
-  /*
-In 'standard' LIME the user copies the location of a (read-only) string to each of the char* elements of inputPars. Trying to free that element then results in an error. However the projected python version will malloc these elements and copy string characters into that memory space. It is for this purpose that we preserve the present function.
-  */
-  int i;
-
-  free(par->collPartIds);
-  free(par->nMolWeights);
-  free(par->dustWeights);
-
-  free(par->outputfile);
-  free(par->binoutputfile);
-  free(par->gridfile);
-  free(par->pregrid);
-  free(par->restart);
-  free(par->dust);
-
-  if(par->moldatfile!= NULL){
-    for(i=0;i<nSpecies;i++)
-      free(par->moldatfile[i]);
-    free(par->moldatfile);
-  }
 }
 
 void
@@ -144,7 +109,8 @@ freeMolData(const int nSpecies, molData *mol){
   }
 }
 
-void freeMolsWithBlends(struct molWithBlends *mols, const int numMolsWithBlends){
+void
+freeMolsWithBlends(struct molWithBlends *mols, const int numMolsWithBlends){
   int mi, li;
 
   if(mols != NULL){
@@ -159,7 +125,8 @@ void freeMolsWithBlends(struct molWithBlends *mols, const int numMolsWithBlends)
   }
 }
 
-void freePopulation(const unsigned short numSpecies, struct populations *pop){
+void
+freePopulation(const unsigned short numSpecies, struct populations *pop){
   if(pop != NULL){
     unsigned short i_s;
     for(i_s=0;i_s<numSpecies;i_s++){
@@ -172,7 +139,8 @@ void freePopulation(const unsigned short numSpecies, struct populations *pop){
   }
 }
 
-void freeSomeGridFields(const unsigned int numPoints, const unsigned short numSpecies\
+void
+freeSomeGridFields(const unsigned int numPoints, const unsigned short numSpecies\
   , struct grid *gp){
 
   unsigned int i_u;

@@ -9,11 +9,11 @@
 
 #include "lime.h"
 
-void writeFits(const int i, configInfo *par, molData *m, imageInfo *img){
+void writeFits(const int i, configInfo *par, imageInfo *img){
   if(img[i].unit<5)
-    write3Dfits(i,par,m,img);
+    write3Dfits(i,par,img);
   else if(img[i].unit==5)
-    write2Dfits(i,par,m,img);
+    write2Dfits(i,par,img);
   else{
     if(!silent) bail_out("Image unit number invalid");
     exit(0);
@@ -21,7 +21,7 @@ void writeFits(const int i, configInfo *par, molData *m, imageInfo *img){
 }
 
 void 
-write3Dfits(int im, configInfo *par, molData *m, imageInfo *img){
+write3Dfits(int im, configInfo *par, imageInfo *img){
   double bscale,bzero,epoch,lonpole,equinox,restfreq;
   double cdelt1,crpix1,crval1,cdelt2,crpix2,crval2;
   double cdelt3,crpix3,crval3,ru3,scale;
@@ -150,7 +150,7 @@ write3Dfits(int im, configInfo *par, molData *m, imageInfo *img){
 }
 
 void 
-write2Dfits(int im, configInfo *par, molData *m, imageInfo *img){
+write2Dfits(int im, configInfo *par, imageInfo *img){
   double bscale,bzero,epoch,lonpole,equinox,restfreq;
   double cdelt1,crpix1,crval1,cdelt2,crpix2,crval2;
   double ru3,scale;
