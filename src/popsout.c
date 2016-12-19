@@ -12,7 +12,7 @@
 #include "lime.h"
 
 void
-popsout(configInfo *par, struct grid *g, molData *m){
+popsout(configInfo *par, struct grid *gp, molData *md){
   FILE *fp;
   int j,k,l;
   double dens;
@@ -26,11 +26,11 @@ popsout(configInfo *par, struct grid *g, molData *m){
   fprintf(fp,"# Column definition: x, y, z, H2 density, kinetic gas temperature, molecular abundance, convergence flag, pops_0...pops_n\n");
   for(j=0;j<par->pIntensity;j++){
     dens=0.;
-    for(l=0;l<par->numDensities;l++) dens+=g[j].dens[l];
-    fprintf(fp,"%e %e %e %e %e %e %d ", g[j].x[0], g[j].x[1], g[j].x[2], dens, g[j].t[0], g[j].mol[0].nmol/dens, g[j].conv);
-    for(k=0;k<m[0].nlev;k++) fprintf(fp,"%e ",g[j].mol[0].pops[k]);
+    for(l=0;l<par->numDensities;l++) dens+=gp[j].dens[l]*par->nMolWeights[l];
+    fprintf(fp,"%e %e %e %e %e %e %d ", gp[j].x[0], gp[j].x[1], gp[j].x[2], dens, gp[j].t[0], gp[j].mol[0].nmol/dens, gp[j].conv);
+    for(k=0;k<md[0].nlev;k++) fprintf(fp,"%e ",gp[j].mol[0].pops[k]);
     fprintf(fp,"\n");
-    //fprintf(fp,"%i %lf %lf %lf %lf %lf %lf %lf %lf\n", g[j].id, g[j].x[0], g[j].x[1], g[j].x[2],  g[j].dens[0], g[j].t[0], g[j].vel[0], g[j].vel[1], g[j].vel[2]);
+    //fprintf(fp,"%i %lf %lf %lf %lf %lf %lf %lf %lf\n", gp[j].id, gp[j].x[0], gp[j].x[1], gp[j].x[2],  gp[j].dens[0], gp[j].t[0], gp[j].vel[0], gp[j].vel[1], gp[j].vel[2]);
   }
   fclose(fp);
 }
@@ -95,11 +95,9 @@ binpopsout(configInfo *par, struct grid *gp, molData *md){
     fwrite(&gp[i].x,  DIM*sizeof(double),   1, fp);
     fwrite(&gp[i].vel,DIM*sizeof(double),   1, fp);
     fwrite(&gp[i].sink, sizeof(int),      1, fp);
-
-    for(j=0;j<par->nSpecies;j++){
-      fwrite(&gp[i].mol[j].nmol,  sizeof(double), 1, fp);
-    }
-    fwrite(&gp[i].dopb, sizeof gp[i].dopb, 1, fp);
+    for(j=0;j<par->nSpecies;j++)
+      fwrite(&gp[i].mol[j].nmol,  sizeof(double),           1, fp);
+    fwrite(&gp[i].dopb_turb, sizeof gp[i].dopb_turb, 1, fp);
     for(j=0;j<par->nSpecies;j++){
       fwrite(gp[i].mol[j].pops,  sizeof(double)*md[j].nlev, 1, fp);
       fwrite(dummyMol[j].knu,   sizeof(double)*md[j].nline,1, fp);

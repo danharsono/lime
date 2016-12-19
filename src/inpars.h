@@ -13,7 +13,7 @@
 /* input parameters */
 typedef struct {
   double radius,minScale,tcmb,*nMolWeights,*dustWeights;
-  int sinkPoints,pIntensity,blend,*collPartIds,traceRayAlgorithm;
+  int sinkPoints,pIntensity,blend,*collPartIds,traceRayAlgorithm,samplingAlgorithm;
   char *outputfile,*binoutputfile;
 //  char *inputfile; unused at present.
   char *gridfile;
@@ -22,6 +22,10 @@ typedef struct {
   char *dust;
   int sampling,lte_only,init_lte,antialias,polarization,nThreads;
   char **moldatfile;
+  char *gridInFile,**gridOutFiles;
+  int nSolveIters;
+  double (*gridDensMaxLoc)[DIM], *gridDensMaxValues;
+  _Bool resetRNG;
 } inputPars;
 
 /* Image information */
@@ -37,6 +41,5 @@ typedef struct {
   double theta,phi,incl,posang,azimuth;
   double distance;
 } image;
-
 
 #endif /* INPARS_H */

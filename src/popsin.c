@@ -18,7 +18,7 @@ popsin(configInfo *par, struct grid **gp, molData **md, int *popsdone){
   int i,j,k,dummyNPart,dummyNTrans;
   double dummy;
   struct cell *dc=NULL; /* Not used at present. */
-  unsigned long numCells;
+  unsigned long numCells,nExtraSinks;
 
   if((fp=fopen(par->restart, "rb"))==NULL){
     if(!silent) bail_out("Error reading binary output populations file!");
@@ -66,11 +66,9 @@ popsin(configInfo *par, struct grid **gp, molData **md, int *popsdone){
   *gp=malloc(sizeof(struct grid)*par->ncell);
 
   for(i=0;i<par->ncell;i++){
-    (*gp)[i].a0 = NULL;
-    (*gp)[i].a1 = NULL;
-    (*gp)[i].a2 = NULL;
-    (*gp)[i].a3 = NULL;
-    (*gp)[i].a4 = NULL;
+    (*gp)[i].v1 = NULL;
+    (*gp)[i].v2 = NULL;
+    (*gp)[i].v3 = NULL;
     (*gp)[i].dens = NULL;
     (*gp)[i].abun = NULL;
     (*gp)[i].dir = NULL;
@@ -84,7 +82,7 @@ popsin(configInfo *par, struct grid **gp, molData **md, int *popsdone){
     (*gp)[i].mol=malloc(par->nSpecies*sizeof(struct populations));
     for(j=0;j<par->nSpecies;j++)
       fread(&(*gp)[i].mol[j].nmol, sizeof(double), 1, fp);
-    fread(&(*gp)[i].dopb, sizeof (*gp)[i].dopb, 1, fp);
+    fread(&(*gp)[i].dopb_turb, sizeof (*gp)[i].dopb_turb, 1, fp);
     for(j=0;j<par->nSpecies;j++){
       (*gp)[i].mol[j].pops=malloc(sizeof(double)*(*md)[j].nlev);
       for(k=0;k<(*md)[j].nlev;k++) fread(&(*gp)[i].mol[j].pops[k], sizeof(double), 1, fp);
@@ -105,9 +103,29 @@ popsin(configInfo *par, struct grid **gp, molData **md, int *popsdone){
   }
   fclose(fp);
 
-  delaunay(DIM, *gp, (unsigned long)par->ncell, 0, &dc, &numCells);
+  delaunay(DIM, *gp, (unsigned long)par->ncell, 0, 1, &dc, &numCells);
+
+  /* We just asked delaunay() to flag any grid points with IDs lower than par->pIntensity (which means their distances from model centre are less than the model radius) but which are nevertheless found to be sink points by virtue of the geometry of the mesh of Delaunay cells. Now we need to reshuffle the list of grid points, then reset par->pIntensity, such that all the non-sink points still have IDs lower than par->pIntensity.
+  */ 
+  nExtraSinks = reorderGrid((unsigned long)par->ncell, *gp);
+  par->pIntensity -= nExtraSinks;
+  par->sinkPoints += nExtraSinks;
+
   distCalc(par, *gp);
-  calcInterpCoeffs(par,*gp);
+  getVelocities(par,*gp);
+
+  par->dataFlags |= (1 << DS_bit_x);
+  par->dataFlags |= (1 << DS_bit_neighbours);
+  par->dataFlags |= (1 << DS_bit_velocity);
+  par->dataFlags |= (1 << DS_bit_density);
+  par->dataFlags |= (1 << DS_bit_abundance);
+  par->dataFlags |= (1 << DS_bit_turb_doppler);
+  par->dataFlags |= (1 << DS_bit_temperatures);
+/*  par->dataFlags |= (1 << DS_bit_magfield); commented out because we are not yet reading it in popsin (and may never do so) */
+  par->dataFlags |= (1 << DS_bit_ACOEFF);
+  par->dataFlags |= (1 << DS_bit_populations);
+
+//**** should fill in any missing info via the appropriate function calls.
 
   *popsdone=1;
 

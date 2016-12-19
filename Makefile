@@ -44,6 +44,9 @@ CPPFLAGS += -DOLD_FITSIO
 # Names of source files included:
 include Makefile.defs
 
+# Names of source files included:
+include Makefile.defs
+
 ##
 ## Do not change anything below unless you know what you are doing! 
 ##

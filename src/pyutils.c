@@ -50,10 +50,7 @@ int
 getParTemplates(const char *headerModuleName, parTemplateType **parTemplate, int *nPars\
   , parTemplateType **imgParTemplate, int *nImgPars){
   /*
-  This reads templates for the 'ordinary' parameter list and the 'image' parameter 
-  lists. The templates, which are read from a python module called here 'headerModuleName' 
-  (note this should be given minus the '.py'), define the name, type and default value 
-  of each parameter, as well as whether they are a list parameter and whether the parameter is mandatory.
+This reads templates for the 'ordinary' parameter list and the 'image' parameter lists. The templates, which are read from a python module called here 'headerModuleName' (note this should be given minus the '.py'), define the name, type and default value of each parameter, as well as whether they are a list parameter and whether the parameter is mandatory.
   */
 
   PyObject *pName,*pModule,*pParClass,*pResult,*pListItem,*pTupleItem;
@@ -561,8 +558,7 @@ initParImg(PyObject *pModule, PyObject *pMacros, parTemplateType *parTemplate\
   , const int nPars, parTemplateType *imgParTemplate, const int nImgPars\
   , inputPars *par, image **img, int *nImages){
   /*
-   * Here we extract par and img from the user's supplied 'model' module by 
-   * calling their python function 'input(macros)'.
+Here we extract par and img from the user's supplied 'model' module by calling their python function 'input(macros)'.
   */
 
   int status=0,i,j,nValues;

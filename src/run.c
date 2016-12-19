@@ -69,17 +69,14 @@ run(inputPars inpars, image *inimg, const int nImages)
   if(par.dust != NULL)
     readDustFile(par.dust, &lamtab, &kaptab, &nEntries);
 
-  /* 
-   * Make all the continuum images:
+  /* Make all the continuum images:
   */
-  printf("Start raytracing continuum\n");  
   for(i=0;i<par.nImages;i++){
     if(!img[i].doline){
       raytrace(i, &par, gp, md, img, lamtab, kaptab, nEntries);
       writeFits(i,&par,md,img);
     }
   }
-  printf("Finish raytracing continuum\n");  
 
   if(par.nLineImages>0){
     molInit(&par, md);
@@ -112,16 +109,13 @@ run(inputPars inpars, image *inimg, const int nImages)
 
   /* Now make the line images.
   */
-  printf("Start raytracing\n");
   for(i=0;i<par.nImages;i++){
     if(img[i].doline){
-      printf("Start raytracing image %d \n", i);
       raytrace(i, &par, gp, md, img, lamtab, kaptab, nEntries);
-      printf("Finish raytrace\n");
       writeFits(i,&par,md,img);
     }
   }
-  printf("THIS IS DONE making images.... almost returning status\n");
+  
   if(!silent) goodnight(initime,img[0].filename);
 
   freeGrid((unsigned int)par.ncell, (unsigned short)par.nSpecies, gp);

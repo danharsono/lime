@@ -16,6 +16,12 @@ TODO:
 
 
 /*....................................................................*/
+double
+dotProduct3D(const double *vA, const double *vB){
+  return vA[0]*vB[0] + vA[1]*vB[1] + vA[2]*vB[2];
+}
+
+/*....................................................................*/
 void
 mallocInputPars(inputPars *par){
   int i;
@@ -43,13 +49,13 @@ copyInparStr(const char *inStr, char **outStr){
 
 /*....................................................................*/
 void
-parseInput(const inputPars inpar, image *inimg, configInfo *par, imageInfo **img, molData **m){
+parseInput(const inputPars inpar, image *inimg, const int nImages, configInfo *par, imageInfo **img, molData **md){
   /*
 The parameters visible to the user have now been strictly confined to members of the structs 'inputPars' and 'image', both of which are defined in inpars.h. There are however further internally-set values which is is convenient to bundle together with the user-set ones. At present we have a fairly clunky arrangement in which the user-set values are copied member-by-member from the user-dedicated structs to the generic internal structs 'configInfo' and 'imageInfo'. This is done in the present function, along with some checks and other initialization.
   */
 
   int i,j,id;
-  double BB[3],normBSquared,dens[MAX_N_COLL_PART];
+  double BB[3],normBSquared,dens[MAX_N_COLL_PART],r[DIM];
   double dummyVel[DIM];
   FILE *fp;
   char message[80];
@@ -82,15 +88,24 @@ The parameters visible to the user have now been strictly confined to members of
   par->minScale     = inpar.minScale;
   par->pIntensity   = inpar.pIntensity;
   par->sinkPoints   = inpar.sinkPoints;
+  par->samplingAlgorithm=inpar.samplingAlgorithm;
   par->sampling     = inpar.sampling;
   par->tcmb         = inpar.tcmb;
+  par->dust         = inpar.dust;
+  par->outputfile   = inpar.outputfile;
+  par->binoutputfile= inpar.binoutputfile;
+  par->restart      = inpar.restart;
+  par->gridfile     = inpar.gridfile;
+  par->pregrid      = inpar.pregrid;
   par->lte_only     = inpar.lte_only;
   par->init_lte     = inpar.init_lte;
   par->blend        = inpar.blend;
   par->antialias    = inpar.antialias;
   par->polarization = inpar.polarization;
   par->nThreads     = inpar.nThreads;
+  par->nSolveIters  = inpar.nSolveIters;
   par->traceRayAlgorithm = inpar.traceRayAlgorithm;
+  par->resetRNG     = inpar.resetRNG;
 
   /* Somewhat more carefully copy over the strings:
   */
@@ -100,29 +115,35 @@ The parameters visible to the user have now been strictly confined to members of
   copyInparStr(inpar.restart,       &(par->restart));
   copyInparStr(inpar.gridfile,      &(par->gridfile));
   copyInparStr(inpar.pregrid,       &(par->pregrid));
+  copyInparStr(inpar.gridInFile,    &(par->gridInFile));
+
+  par->gridOutFiles = malloc(sizeof(char *)*NUM_GRID_STAGES);
+  for(i=0;i<NUM_GRID_STAGES;i++)
+    copyInparStr(inpar.gridOutFiles[i], &(par->gridOutFiles[i]));
 
   /* Now set the additional values in par. */
   par->ncell = inpar.pIntensity + inpar.sinkPoints;
   par->radiusSqu = inpar.radius*inpar.radius;
   par->minScaleSqu=inpar.minScale*inpar.minScale;
-  par->doPregrid = (par->pregrid==NULL)?0:1;
+  par->doPregrid = (inpar.pregrid==NULL)?0:1;
 
   /* If the user has provided a list of moldatfile names, the corresponding elements of par->moldatfile will be non-NULL. Thus we can deduce the number of files (species) from the number of non-NULL elements.
   */
   par->nSpecies=0;
-  while(par->nSpecies<MAX_NSPECIES && inpar.moldatfile[par->nSpecies]!=NULL && strlen(inpar.moldatfile[par->nSpecies])>0)
+  while(inpar.moldatfile[par->nSpecies]!=NULL && par->nSpecies<MAX_NSPECIES)
     par->nSpecies++;
 
   /* Copy over the moldatfiles.
   */
   if(par->nSpecies == 0){
-    par->nSpecies = 1;/* ******************* should not confuse continuum and line in this way. */
+    par->nSpecies = 1;
     par->moldatfile = NULL;
 
   } else {
     par->moldatfile=malloc(sizeof(char *)*par->nSpecies);
-    for(id=0;id<par->nSpecies;id++)
-      copyInparStr(inpar.moldatfile[id], &(par->moldatfile[id]));
+    for(id=0;id<par->nSpecies;id++){
+      par->moldatfile[id] = inpar.moldatfile[id];
+    }
 
     /* Check if files exist. */
     for(id=0;id<par->nSpecies;id++){
@@ -143,6 +164,23 @@ The parameters visible to the user have now been strictly confined to members of
   par->dustWeights  = malloc(sizeof(double)*MAX_N_COLL_PART);
   for(i=0;i<MAX_N_COLL_PART;i++) par->dustWeights[i] = inpar.dustWeights[i];
 
+  /* Copy over the grid-density-maximum data and find out how many were set:
+  */
+  par->gridDensMaxValues = malloc(sizeof(*(par->gridDensMaxValues))*MAX_N_HIGH);
+  par->gridDensMaxLoc    = malloc(sizeof(*(par->gridDensMaxLoc))*MAX_N_HIGH);
+  for(i=0;i<MAX_N_HIGH;i++){
+    par->gridDensMaxValues[i] = inpar.gridDensMaxValues[i];
+    for(j=0;j<DIM;j++) par->gridDensMaxLoc[i][j] = inpar.gridDensMaxLoc[i][j];
+  }
+  i = 0;
+  while(i<MAX_N_HIGH && par->gridDensMaxValues[i]>=0) i++;
+  par->numGridDensMaxima = i;
+
+  /* Check that the user has supplied the velocity function (needed in raytracing unless par->doPregrid). Note that the other previously mandatory functions (density, abundance, doppler and temperature) may not be necessary if the user reads in the appropriate values from a file. This is tested at the appropriate place in readOrBuildGrid().
+  */
+  if(!par->doPregrid || par->traceRayAlgorithm==1)
+    velocity(0.0,0.0,0.0, dummyVel);
+
   /* Calculate par->numDensities.
   */
   if(!(par->doPregrid || par->restart)){ /* These switches cause par->numDensities to be set in routines they call. */
@@ -160,10 +198,26 @@ The parameters visible to the user have now been strictly confined to members of
     }
   }
 
-  /* Check that the user has supplied this function (needed unless par->doPregrid):
+  /* If the user has provided a list of image filenames, the corresponding elements of (*img).filename will be non-NULL. Thus we can deduce the number of images from the number of non-NULL elements.
   */
-  if(!par->doPregrid || par->traceRayAlgorithm==1)
-    velocity(0.0,0.0,0.0, dummyVel);
+  par->nImages=0;
+  while((*img)[par->nImages].filename!=NULL && par->nImages<MAX_NIMAGES)
+    par->nImages++;
+
+  /* Test now any maxima the user has provided:
+  */
+  for(i=0;i<par->numGridDensMaxima;i++)
+    if(par->gridDensMaxValues[i]>par->gridDensGlobalMax) par->gridDensGlobalMax = par->gridDensMaxValues[i];
+
+  if (par->gridDensGlobalMax<=0.0){
+    if(!silent) bail_out("Cannot normalize the grid-point number density function.");
+    exit(1);
+  }
+
+  for(i=0;i<NUM_GRID_STAGES;i++){
+    if(par->gridOutFiles[i] != NULL)
+      par->writeGridAtStage[i] = 1;
+  };
 
   /*
 Now we need to calculate the cutoff value used in calcSourceFn(). The issue is to decide between
@@ -183,31 +237,7 @@ The cutoff will be the value of abs(x) for which the error in the exact expressi
 
   par->numDims = DIM;
 
-  /* Copy over user-set image values to the generic struct:
-  */
-  *img = malloc(sizeof(**img)*par->nImages);
-  for(i=0;i<par->nImages;i++){
-    (*img)[i].nchan      = inimg[i].nchan;
-    (*img)[i].trans      = inimg[i].trans;
-    (*img)[i].molI       = inimg[i].molI;
-    (*img)[i].velres     = inimg[i].velres;
-    (*img)[i].imgres     = inimg[i].imgres;
-    (*img)[i].pxls       = inimg[i].pxls;
-    (*img)[i].unit       = inimg[i].unit;
-    (*img)[i].freq       = inimg[i].freq;
-    (*img)[i].bandwidth  = inimg[i].bandwidth;
-    copyInparStr(inimg[i].filename, &((*img)[i].filename));
-    (*img)[i].source_vel = inimg[i].source_vel;
-    (*img)[i].theta      = inimg[i].theta;
-    (*img)[i].phi        = inimg[i].phi;
-    (*img)[i].incl       = inimg[i].incl;
-    (*img)[i].posang     = inimg[i].posang;
-    (*img)[i].azimuth    = inimg[i].azimuth;
-    (*img)[i].distance   = inimg[i].distance;
-  }
-
-  /* Allocate pixel space and parse image information.
-  */
+  /* Allocate pixel space and parse image information */
   for(i=0;i<par->nImages;i++){
     if((*img)[i].nchan == 0 && (*img)[i].velres<0 ){ /* => user has set neither nchan nor velres. One of the two is required for a line image. */
       /* Assume continuum image */
@@ -719,9 +749,10 @@ Pointers are indicated by a * before the attribute name and an arrow to the memo
   }
 }
 
+/*....................................................................*/
 void
 levelPops(molData *md, configInfo *par, struct grid *gp, int *popsdone, double *lamtab, double *kaptab, const int nEntries){
-  int id,conv=0,iter,ilev,prog=0,ispec,c=0,n,i,threadI,nVerticesDone,nlinetot;
+  int id,iter,ilev,ispec,c=0,n,i,threadI,nVerticesDone,nItersDone,nlinetot;
   double percent=0.,*median,result1=0,result2=0,snr,delta_pop;
   int nextMolWithBlend;
   struct statistics { double *pop, *ave, *sigma; } *stat;
@@ -729,6 +760,7 @@ levelPops(molData *md, configInfo *par, struct grid *gp, int *popsdone, double *
   struct blendInfo blends;
   _Bool luWarningGiven=0;
   gsl_error_handler_t *defaultErrorHandler=NULL;
+  int RNG_seeds[par->nThreads];
 
   nlinetot = 0;
   for(ispec=0;ispec<par->nSpecies;ispec++)
@@ -790,8 +822,9 @@ This is done to allow proper handling of errors which may arise in the LU solver
 While this is off however, other gsl_* etc calls will not exit if they encounter a problem. We may need to pay some attention to trapping their errors.
     */
 
-    do{
-      if(!silent) progressbar2(0, prog++, 0, result1, result2);
+    nItersDone=0;
+    while(nItersDone < par->nSolveIters){ /* Not a 'for' loop because we will probably later want to add a convergence criterion. */
+      if(!silent) progressbar2(par, 0, nItersDone, 0, result1, result2);
 
       for(id=0;id<par->pIntensity;id++){
         for(ilev=0;ilev<md[0].nlev;ilev++) {
@@ -808,13 +841,15 @@ While this is off however, other gsl_* etc calls will not exit if they encounter
       {
         threadI = omp_get_thread_num();
 
+        if (par->resetRNG==1) gsl_rng_set(threadRans[threadI],RNG_seeds[threadI]);
         /* Declare and allocate thread-private variables */
         gridPointData *mp;	// Could have declared them earlier
         double *halfFirstDs;	// and included them in private() I guess.
         mp=malloc(sizeof(gridPointData)*par->nSpecies);
         for (ispec=0;ispec<par->nSpecies;ispec++){
           mp[ispec].phot = malloc(sizeof(double)*md[ispec].nline*max_phot);
-          mp[ispec].vfac = malloc(sizeof(double)*                max_phot);
+          mp[ispec].vfac = malloc(sizeof(double)*               max_phot);
+          mp[ispec].vfac_loc = malloc(sizeof(double)*           max_phot);
           mp[ispec].jbar = malloc(sizeof(double)*md[ispec].nline);
         }
         halfFirstDs = malloc(sizeof(*halfFirstDs)*max_phot);
@@ -880,15 +915,16 @@ While this is off however, other gsl_* etc calls will not exit if they encounter
       }
 
       gsl_sort(median, 1, c);
-      if(conv>1){
+      if(nItersDone>1){
         result1=median[0];
         result2 =gsl_stats_median_from_sorted_data(median, 1, c);
       }
       free(median);
 
-      if(!silent) progressbar2(1, prog, percent, result1, result2);
-      if(par->outputfile) popsout(par,gp,md);
-    } while(conv++<NITERATIONS);
+      if(!silent) progressbar2(par, 1, nItersDone, percent, result1, result2);
+      if(par->outputfile != NULL) popsout(par,gp,md);
+      nItersDone++;
+    }
     gsl_set_error_handler(defaultErrorHandler);
 
     freeMolsWithBlends(blends.mols, blends.numMolsWithBlends);
@@ -910,5 +946,41 @@ While this is off however, other gsl_* etc calls will not exit if they encounter
   if(par->binoutputfile) binpopsout(par,gp,md);
 
   *popsdone=1;
+}
+
+_Bool allBitsSet(const int flags, const int mask){
+  /* Returns true only if all the masked bits of flags are set. */
+
+  if(~flags & mask)
+    return 0;
+  else
+    return 1;
+}
+
+_Bool anyBitSet(const int flags, const int mask){
+  /* Returns true if any of the masked bits of flags are set. */
+
+  if(flags & mask)
+    return 1;
+  else
+    return 0;
+}
+
+_Bool bitIsSet(const int flags, const int bitI){
+  /* Returns true if the designated bit of flags is set. */
+
+  if(flags & (1 << bitI))
+    return 1;
+  else
+    return 0;
+}
+
+_Bool onlyBitsSet(const int flags, const int mask){
+  /* Returns true if flags has no bits set apart from those which are true in mask. */
+
+  if(flags & ~mask)
+    return 0;
+  else
+    return 1;
 }
 

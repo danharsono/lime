@@ -15,7 +15,7 @@ predefinedGrid(configInfo *par, struct grid *g){
   int i,j;
   double x,y,z,scale;
   struct cell *dc=NULL; /* Not used at present. */
-  unsigned long numCells;
+  unsigned long numCells,nExtraSinks;
 
   gsl_rng *ran = gsl_rng_alloc(gsl_rng_ranlxs2);
 #ifdef TEST
@@ -28,8 +28,8 @@ predefinedGrid(configInfo *par, struct grid *g){
   par->ncell=par->pIntensity+par->sinkPoints;
 
   for(i=0;i<par->pIntensity;i++){
-    //    fscanf(fp,"%d %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n", &g[i].id, &g[i].x[0], &g[i].x[1], &g[i].x[2],  &g[i].dens[0], &g[i].t[0], &abun, &g[i].dopb, &g[i].vel[0], &g[i].vel[1], &g[i].vel[2]);
-    //    fscanf(fp,"%d %lf %lf %lf %lf %lf %lf %lf\n", &g[i].id, &g[i].x[0], &g[i].x[1], &g[i].x[2],  &g[i].dens[0], &g[i].t[0], &abun, &g[i].dopb);
+    //    fscanf(fp,"%d %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n", &g[i].id, &g[i].x[0], &g[i].x[1], &g[i].x[2],  &g[i].dens[0], &g[i].t[0], &abun, &g[i].dopb_turb, &g[i].vel[0], &g[i].vel[1], &g[i].vel[2]);
+    //    fscanf(fp,"%d %lf %lf %lf %lf %lf %lf %lf\n", &g[i].id, &g[i].x[0], &g[i].x[1], &g[i].x[2],  &g[i].dens[0], &g[i].t[0], &abun, &g[i].dopb_turb);
     int nRead = fscanf(fp,"%d %lf %lf %lf %lf %lf %lf %lf %lf\n", &g[i].id, &g[i].x[0], &g[i].x[1], &g[i].x[2],  &g[i].dens[0], &g[i].t[0], &g[i].vel[0], &g[i].vel[1], &g[i].vel[2]);
     if( nRead != 9 || g[i].id < 0 || g[i].id > par->ncell)
       {
@@ -37,7 +37,7 @@ predefinedGrid(configInfo *par, struct grid *g){
         exit(0);
       }
 
-    g[i].dopb=200;
+    g[i].dopb_turb=200;
     g[i].abun[0]=1e-9;
 
     g[i].sink=0;
@@ -75,17 +75,36 @@ predefinedGrid(configInfo *par, struct grid *g){
       g[i].B[0]=0.0;
       g[i].B[1]=0.0;
       g[i].B[2]=0.0;
-      g[i].dopb=0.;
+      g[i].dopb_turb=0.;
       for(j=0;j<DIM;j++) g[i].vel[j]=0.;
     } else i--;
   }
   fclose(fp);
 
-  delaunay(DIM, g, (unsigned long)par->ncell, 0, &dc, &numCells);
+  delaunay(DIM, g, (unsigned long)par->ncell, 0, 1, &dc, &numCells);
+
+  /* We just asked delaunay() to flag any grid points with IDs lower than par->pIntensity (which means their distances from model centre are less than the model radius) but which are nevertheless found to be sink points by virtue of the geometry of the mesh of Delaunay cells. Now we need to reshuffle the list of grid points, then reset par->pIntensity, such that all the non-sink points still have IDs lower than par->pIntensity.
+  */ 
+  nExtraSinks = reorderGrid((unsigned long)par->ncell, g);
+  par->pIntensity -= nExtraSinks;
+  par->sinkPoints += nExtraSinks;
+
   distCalc(par,g);
   //  getArea(par,g, ran);
   //  getMass(par,g, ran);
-  calcInterpCoeffs_lin(par,g);
+  getVelocities_pregrid(par,g);
+
+  par->dataFlags |= (1 << DS_bit_x);
+  par->dataFlags |= (1 << DS_bit_neighbours);
+  par->dataFlags |= (1 << DS_bit_velocity);
+  par->dataFlags |= (1 << DS_bit_density);
+  par->dataFlags |= (1 << DS_bit_abundance);
+  par->dataFlags |= (1 << DS_bit_turb_doppler);
+  par->dataFlags |= (1 << DS_bit_temperatures);
+  par->dataFlags |= (1 << DS_bit_magfield);
+  par->dataFlags |= (1 << DS_bit_ACOEFF);
+
+//**** should fill in any missing info via the appropriate function calls.
 
   if(par->gridfile) write_VTK_unstructured_Points(par, g);
   gsl_rng_free(ran);

@@ -7,180 +7,183 @@
  *
  */
 
+
 #include "lime.h"
 
+
 /*....................................................................*/
-int getNextEdge(double *inidir, int id, struct grid *gp, const gsl_rng *ran){
-  int i,iOfLargest,iOfNextLargest,numPositive;
-  double cosAngle,largest,nextLargest,mytest;
+double
+geterf(const double x0, const double x1) {
+  /* table lookup erf thingy */
 
-  /* Calculate dot products between inidir and all the edges. Store the largest of these and the next largest.
-  */
-  numPositive = 0;
-  for(i=0;i<gp[id].numNeigh;i++){
-    cosAngle=( inidir[0]*gp[id].dir[i].xn[0]
-              +inidir[1]*gp[id].dir[i].xn[1]
-              +inidir[2]*gp[id].dir[i].xn[2]);
-
-    if(cosAngle>0.0)
-      numPositive++;
-
-    if(i==0){
-      largest = cosAngle;
-      iOfLargest = i;
-    }else if(i==1){
-      if(cosAngle>largest){
-        nextLargest = largest;
-        iOfNextLargest = iOfLargest;
-        largest = cosAngle;
-        iOfLargest = i;
-      }else{
-        nextLargest = cosAngle;
-        iOfNextLargest = i;
-      }
-    }else{
-      if(cosAngle>largest){
-        nextLargest = largest;
-        iOfNextLargest = iOfLargest;
-        largest = cosAngle;
-        iOfLargest = i;
-      }else if(cosAngle>nextLargest){
-        nextLargest = cosAngle;
-        iOfNextLargest = i;
-      }
-    }
+  double val0=0.,val1=0.;
+  
+  if (fabs(x0)>=ERF_TABLE_LIMIT) val0=(SPI/2.);
+  else {
+    int index = (int)(fabs(x0*IBIN_WIDTH));
+    double inter_coeff = (fabs(x0*IBIN_WIDTH)-index);
+    val0=(1-inter_coeff)*ERF_TABLE[index]+inter_coeff*ERF_TABLE[index+1];
   }
-
-  if(!silent && numPositive<=0)
-    warning("Photon propagation error - there are no forward-going edges.");
-
-  /* Choose the edge to follow.
-  */
-  mytest = (1.0 + nextLargest)/(2.0 + nextLargest + largest);
-  /* The addition of the scalars here is I think essentially arbitrary - they just serve to make the choices a bit more even, which tends to scatter the photon a bit more. */
-  if(gsl_rng_uniform(ran)<mytest)
-    return iOfNextLargest;
-  else
-    return iOfLargest;
-
-}
-
-inline double interpolate(double a0, double a1, double a2, double a3, double a4, double s){
-  /*
-Calculates a polynomial interpolation of velocity at location d along an interval of length ds
-
-	       __4
-	       \
-	v(d) ~  >     a_j*s^j
-	       /_j=0
-
-where it is assumed that
-
-	     d
-	s = --- - 0.5.
-	     ds
-  */
-  double vel;
-  vel = (((a4*s + a3)*s + a2)*s + a1)*s + a0;
-  return vel;
-}
-
-/*....................................................................*/
-void calcLineAmpSpline(struct grid *gp, const int id, const int k\
-  , const double oneOnB, const double deltav, double *avRelLineAmp){
-  /*
-This performs a numerical integration of the amplitude of a spectral line along the link or edge between two grid points. The line shapes are Gaussian and are normalized such that the maximum equals unity. The integral may be expressed as
-
-	         ds
-	     1   /       (-[deltav-v{x}]^2 )
-	I = ---- | dx exp(-----------------)
-	     ds  /       (       B         )
-	        0
-
-where ds is the distance between the two grid points and v(x) is the component of vector velocity in the direction of the 'edge' between the grid points. v(x) is estimated via polynomial interpolation - see function 'interpolate()' for the exact formula.
-  */
-
-  int nCoarseSamples,i,nFineSamples,j;
-  double v1,v2,vOld,vNew,dFracOld,dFracNew,dFrac,v,fineRelLineAmp;
-  
-  v1 = interpolate(gp[id].a0[k], gp[id].a1[k], gp[id].a2[k], gp[id].a3[k], gp[id].a4[k], -0.5);
-  v2 = interpolate(gp[id].a0[k], gp[id].a1[k], gp[id].a2[k], gp[id].a3[k], gp[id].a4[k],  0.5);
-
-  nCoarseSamples = (fabs(v1-v2)*oneOnB < 1) ? 1 : (int)(fabs(v1-v2)*oneOnB);
-  *avRelLineAmp = 0.0;
-  dFracNew = 0.0;
-  vNew = v1;
-  
-  for(i=0;i<nCoarseSamples;i++){
-    dFracOld = dFracNew;
-    dFracNew = ((double)(i+1))/(double)nCoarseSamples;
-    vOld = vNew;
-    vNew = interpolate(gp[id].a0[k], gp[id].a1[k], gp[id].a2[k], gp[id].a3[k], gp[id].a4[k], dFracNew-0.5);
-    nFineSamples = (1 > fabs(vOld-vNew)*oneOnB) ? 1 : (int)(fabs(vOld-vNew)*oneOnB);
-    fineRelLineAmp = 0.0;
-    for(j=0;j<nFineSamples;j++){
-      dFrac = dFracOld + (dFracNew-dFracOld)*((double)j+0.5)/(double)nFineSamples;
-      v = interpolate(gp[id].a0[k], gp[id].a1[k], gp[id].a2[k], gp[id].a3[k], gp[id].a4[k], dFrac-0.5);
-
-      fineRelLineAmp += gaussline(deltav-v,oneOnB);
-    }
-    *avRelLineAmp += fineRelLineAmp/(double)nFineSamples;
+  if (x0<0.) val0=-val0;
+ 
+  if (fabs(x1)>=ERF_TABLE_LIMIT) val1=(SPI/2.);
+  else {
+    int index = (int)(fabs(x1*IBIN_WIDTH));
+    double inter_coeff = (fabs(x1*IBIN_WIDTH)-index);
+    val1=(1-inter_coeff)*ERF_TABLE[index]+inter_coeff*ERF_TABLE[index+1];
   }
-  *avRelLineAmp= *avRelLineAmp/(double)nCoarseSamples;
-  return;
+  if (x1<0.) val1=-val1;
+
+  return fabs((val1-val0)/(x1-x0));
 }
 
 /*....................................................................*/
-void calcLineAmpLinear(struct grid *gp, const int id, const int k\
-  , const double oneOnB, const double deltav, double *avRelLineAmp){
-  /*
-The same as calcAvRelLineAmp(), only using 2 polynomial interpolation coefficients.
-  */
-
-  int nCoarseSamples,i,nFineSamples,j;
-  double v1,v2,vOld,vNew,dFracOld,dFracNew,dFrac,v,fineRelLineAmp;
-  
-  v1 = gp[id].a0[k] - 0.5*gp[id].a1[k];
-  v2 = gp[id].a0[k] + 0.5*gp[id].a1[k];
-
-  nCoarseSamples = (fabs(v1-v2)*oneOnB < 1) ? 1 : (int)(fabs(v1-v2)*oneOnB);
-  *avRelLineAmp = 0.0;
-  dFracNew = 0.0;
-  vNew = v1;
-  
-  for(i=0;i<nCoarseSamples;i++){
-    dFracOld = dFracNew;
-    dFracNew = ((double)(i+1))/(double)nCoarseSamples;
-    vOld = vNew;
-    vNew = gp[id].a0[k] + gp[id].a1[k]*(dFracNew-0.5);
-    nFineSamples = (1 > fabs(vOld-vNew)*oneOnB) ? 1 : (int)(fabs(vOld-vNew)*oneOnB);
-    fineRelLineAmp = 0.0;
-    for(j=0;j<nFineSamples;j++){
-      dFrac = dFracOld + (dFracNew-dFracOld)*((double)j+0.5)/(double)nFineSamples;
-      v = gp[id].a0[k] + gp[id].a1[k]*(dFrac-0.5);
-      fineRelLineAmp += gaussline(deltav-v,oneOnB);
-    }
-    *avRelLineAmp += fineRelLineAmp/(double)nFineSamples;
-  }
-  *avRelLineAmp= *avRelLineAmp/(double)nCoarseSamples;
-  return;
-}
-
-/*....................................................................*/
-double veloproject(double dx[3], double *vel){
-  return dx[0]*vel[0]+dx[1]*vel[1]+dx[2]*vel[2];
-}
-
-/*....................................................................*/
-double gaussline(double v, double oneOnSigma){
+double
+gaussline(const double v, const double oneOnSigma){
   double val;
-
   val = v*v*oneOnSigma*oneOnSigma;
 #ifdef FASTEXP
   return FastExp(val);
 #else
   return exp(-val);
 #endif
+}
+
+/*....................................................................*/
+int
+getNextEdge(double *inidir, const int startGi, const int presentGi\
+  , struct grid *gp, const gsl_rng *ran){
+  /*
+The idea here is to select for the next grid point, that one which lies closest (with a little randomizing jitter) to the photon track, while requiring the direction of the edge to be in the 'forward' hemisphere of the photon direction.
+  */
+  int i,ni,niOfSmallest,niOfNextSmallest;
+  double dirCos,distAlongTrack,dirFromStart[3],coord,distToTrackSquared,smallest,nextSmallest;
+  const static double scatterReduction = 0.4;
+  /*
+This affects the ratio of N_2/N_1, where N_2 is the number of times the edge giving the 2nd-smallest distance from the photon track is chosen and N_1 ditto the smallest. Some ratio values obtained from various values of scatterReduction:
+
+	scatterReduction	<N_2/N_1>
+		1.0		  0.42
+		0.5		  0.75
+		0.4		  0.90
+		0.2		  1.52
+
+Note that the equivalent ratio value produced by the 1.6 code was 0.91.
+  */
+
+  i = 0;
+  for(ni=0;ni<gp[presentGi].numNeigh;ni++){
+    dirCos = dotProduct3D(inidir, gp[presentGi].dir[ni].xn);
+
+    if(dirCos<=0.0)
+  continue; /* because the edge points in the backward direction. */
+
+    dirFromStart[0] = gp[presentGi].neigh[ni]->x[0] - gp[startGi].x[0];
+    dirFromStart[1] = gp[presentGi].neigh[ni]->x[1] - gp[startGi].x[1];
+    dirFromStart[2] = gp[presentGi].neigh[ni]->x[2] - gp[startGi].x[2];
+    distAlongTrack = dotProduct3D(inidir, dirFromStart);
+
+    coord = dirFromStart[0] - distAlongTrack*inidir[0];
+    distToTrackSquared  = coord*coord;
+    coord = dirFromStart[1] - distAlongTrack*inidir[1];
+    distToTrackSquared += coord*coord;
+    coord = dirFromStart[2] - distAlongTrack*inidir[2];
+    distToTrackSquared += coord*coord;
+
+    if(i==0){
+      smallest = distToTrackSquared;
+      niOfSmallest = ni;
+    }else{
+      if(distToTrackSquared<smallest){
+        nextSmallest = smallest;
+        niOfNextSmallest = niOfSmallest;
+        smallest = distToTrackSquared;
+        niOfSmallest = ni;
+      }else if(i==1 || distToTrackSquared<nextSmallest){
+        nextSmallest = distToTrackSquared;
+        niOfNextSmallest = ni;
+      }
+    }
+
+    i++;
+  }
+
+  /* Choose the edge to follow.
+  */
+  if(i>1){ /* then nextSmallest, niOfNextSmallest should exist. */
+    if((smallest + scatterReduction*nextSmallest)*gsl_rng_uniform(ran)<smallest){
+      return niOfNextSmallest;
+    }else{
+      return niOfSmallest;
+    }
+  }else if(i>0){
+    return niOfSmallest;
+  }else{
+    if(!silent)
+      bail_out("Photon propagation error - no valid edges.");
+    exit(1);
+  }
+}
+
+/*....................................................................*/
+void calcLineAmpPWLin(struct grid *g, const int id, const int k\
+  , const int molI, const double deltav, double *inidir, double *vfac_in, double *vfac_out){
+
+  /* convolution of a Gaussian with a box */
+  double binv_this, binv_next, v[5];
+
+  binv_this=g[id].mol[molI].binv;
+  binv_next=(g[id].neigh[k])->mol[molI].binv;
+  v[0]=deltav-dotProduct3D(inidir,g[id].vel);
+  v[1]=deltav-dotProduct3D(inidir,&(g[id].v1[3*k]));
+  v[2]=deltav-dotProduct3D(inidir,&(g[id].v2[3*k]));
+  v[3]=deltav-dotProduct3D(inidir,&(g[id].v3[3*k]));
+  v[4]=deltav-dotProduct3D(inidir,g[id].neigh[k]->vel);
+
+  /* multiplying by the appropriate binv changes from velocity to doppler widths(?) */
+  /* if the values were be no more than 2 erf table bins apart, we just take a single Gaussian */
+
+  /*
+  vfac_out is the lineshape for the part of the edge in the current Voronoi cell,
+  vfac_in is for the part in the next cell
+  */
+
+  if (fabs(v[1]-v[0])*binv_this>(2.0*BIN_WIDTH)) {
+     *vfac_out=0.5*geterf(v[0]*binv_this,v[1]*binv_this);
+  } else *vfac_out=0.5*gaussline(0.5*(v[0]+v[1]),binv_this);
+  if (fabs(v[2]-v[1])*binv_this>(2.0*BIN_WIDTH)) {
+    *vfac_out+=0.5*geterf(v[1]*binv_this,v[2]*binv_this);
+  } else *vfac_out+=0.5*gaussline(0.5*(v[1]+v[2]),binv_this);
+
+  if (fabs(v[3]-v[2])*binv_next>(2.0*BIN_WIDTH)) {
+     *vfac_in=0.5*geterf(v[2]*binv_next,v[3]*binv_next);
+  } else *vfac_in=0.5*gaussline(0.5*(v[2]+v[3]),binv_next);
+  if (fabs(v[4]-v[3])*binv_next>(2.0*BIN_WIDTH)) {
+    *vfac_in+=0.5*geterf(v[3]*binv_next,v[4]*binv_next);
+  } else *vfac_in+=0.5*gaussline(0.5*(v[3]+v[4]),binv_next);
+}
+
+
+void calcLineAmpLin(struct grid *g, const int id, const int k\
+  , const int molI, const double deltav, double *inidir, double *vfac_in, double *vfac_out){
+
+
+  /* convolution of a Gaussian with a box */
+  double binv_this, binv_next, v[3];
+
+  binv_this=g[id].mol[molI].binv;
+  binv_next=(g[id].neigh[k])->mol[molI].binv;
+  v[0]=deltav-dotProduct3D(inidir,g[id].vel);
+  v[2]=deltav-dotProduct3D(inidir,g[id].neigh[k]->vel);
+  v[1]=0.5*(v[0]+v[2]);
+
+  if (fabs(v[1]-v[0])*binv_this>(2.0*BIN_WIDTH)) {
+     *vfac_out=geterf(v[0]*binv_this,v[1]*binv_this);
+  } else *vfac_out+=gaussline(0.5*(v[0]+v[1]),binv_this);
+
+  if (fabs(v[2]-v[1])*binv_next>(2.0*BIN_WIDTH)) {
+     *vfac_in=geterf(v[1]*binv_next,v[2]*binv_next);
+  } else *vfac_in+=gaussline(0.5*(v[1]+v[2]),binv_next);
 }
 
 /*....................................................................*/
@@ -201,13 +204,13 @@ void calcSourceFn(double dTau, const configInfo *par, double *remnantSnu, double
 #ifdef FASTEXP
   *expDTau = FastExp(dTau);
   if (fabs(dTau)<par->taylorCutoff){
-    *remnantSnu = 1. - dTau*(1. - dTau/3.)/2.;
+    *remnantSnu = 1. - dTau*(1. - dTau*(1./3.))*(1./2.);
   } else {
     *remnantSnu = (1.-(*expDTau))/dTau;
   }
 #else
   if (fabs(dTau)<par->taylorCutoff){
-    *remnantSnu = 1. - dTau*(1. - dTau/3.)/2.;
+    *remnantSnu = 1. - dTau*(1. - dTau*(1./3.))*(1./2.);
     *expDTau = 1. - dTau*(*remnantSnu);
   } else {
     *expDTau = exp(-dTau);
@@ -217,20 +220,17 @@ void calcSourceFn(double dTau, const configInfo *par, double *remnantSnu, double
 }
 
 /*....................................................................*/
-void photon(int id, struct grid *gp, molData *md, int iter, const gsl_rng *ran\
+void
+photon(int id, struct grid *gp, molData *md, const gsl_rng *ran\
   , configInfo *par, const int nlinetot, struct blendInfo blends\
   , gridPointData *mp, double *halfFirstDs){
 
-  int iphot,iline,here,there,firststep,neighI,np_per_line,ip_at_line;
+  int iphot,iline,here,there,firststep,neighI;
   int nextMolWithBlend, nextLineWithBlend, molI, lineI, molJ, lineJ, bi;
-  double deltav,segment,vblend,dtau,expDTau,jnu,alpha,ds,vfac[par->nSpecies],pt_theta,pt_z,semiradius;
-  double *tau,*expTau,inidir[3];
-  double remnantSnu, velProj;
-
-  tau    = malloc(sizeof(*tau)   *nlinetot);
-  expTau = malloc(sizeof(*expTau)*nlinetot);
-  
-  np_per_line=(int) gp[id].nphot/gp[id].numNeigh; // Works out to be equal to ininphot. :-/
+  double segment,vblend_in,vblend_out,dtau,expDTau,ds_in=0.0,ds_out=0.0,pt_theta,pt_z,semiradius;
+  double deltav[par->nSpecies],vfac_in[par->nSpecies],vfac_out[par->nSpecies],vfac_inprev[par->nSpecies];
+  double expTau[nlinetot],inidir[3];
+  double remnantSnu,velProj;
 
   for(iphot=0;iphot<gp[id].nphot;iphot++){
     firststep=1;
@@ -238,14 +238,13 @@ void photon(int id, struct grid *gp, molData *md, int iter, const gsl_rng *ran\
     for(molI=0;molI<par->nSpecies;molI++){
       for(lineI=0;lineI<md[molI].nline;lineI++){
         mp[molI].phot[lineI+iphot*md[molI].nline]=0.;
-        tau[iline]=0.;
         expTau[iline]=1.;
         iline++;
       }
     }
 
     /* Choose random initial photon direction (the distribution used here is even over the surface of a sphere of radius 1).
-    */		
+    */
     pt_theta=gsl_rng_uniform(ran)*2*PI;
     pt_z=2*gsl_rng_uniform(ran)-1;
     semiradius = sqrt(1.-pt_z*pt_z);
@@ -255,45 +254,62 @@ void photon(int id, struct grid *gp, molData *md, int iter, const gsl_rng *ran\
 
     /* Choose the photon frequency/velocity offset.
     */
-    iter=(int) (gsl_rng_uniform(ran)*(double)N_RAN_PER_SEGMENT); /* can have values in [0,1,..,N_RAN_PER_SEGMENT-1]*/
-    ip_at_line=(int) iphot/gp[id].numNeigh;
-    segment=(N_RAN_PER_SEGMENT*(ip_at_line-np_per_line*0.5)+iter)/(double)(np_per_line*N_RAN_PER_SEGMENT);
+    segment=gsl_rng_uniform(ran)-0.5;
     /*
     Values of segment should be evenly distributed (considering the
-    entire ensemble of photons) between -0.5 and +0.5, and are chosen
-    from a sequence of possible values separated by
-    1/(N_RAN_PER_SEGMENT*ininphot).
+    entire ensemble of photons) between -0.5 and +0.5.
     */
 
-    here=gp[id].id;
-    deltav=segment*4.3*gp[id].dopb+veloproject(inidir,gp[id].vel);
+    for (molI=0;molI<par->nSpecies;molI++){
+      /* Is factor 4.3=[-2.15,2.15] enough?? */
+      deltav[molI]=4.3*segment*gp[id].mol[molI].dopb+dotProduct3D(inidir,gp[id].vel);
+      /*
+      This is the local (=evaluated at a grid point, not averaged over the local cell) lineshape.
+      We store this for later use in ALI loops.
+      */
+      mp[molI].vfac_loc[iphot]=gaussline(deltav[molI]-dotProduct3D(inidir,gp[id].vel),gp[id].mol[molI].binv);
+    }
+
+    here = gp[id].id;
 
     /* Photon propagation loop */
-    do{
-      neighI=getNextEdge(inidir,here,gp,ran);
+    while(!gp[here].sink){ /* Testing for sink at loop start is redundant for the first step, since we only start photons from non-sink points, but it makes for simpler code. */
+      neighI = getNextEdge(inidir,id,here,gp,ran);
+
       there=gp[here].neigh[neighI]->id;
 
       if(firststep){
-        firststep=0;				
-        ds=gp[here].ds[neighI]*0.5;
-        halfFirstDs[iphot]=ds;
+        firststep=0;
+        ds_out=0.5*gp[here].ds[neighI]*dotProduct3D(inidir,gp[here].dir[neighI].xn);
+        halfFirstDs[iphot]=ds_out;
 
         for(molI=0;molI<par->nSpecies;molI++){
-          if(par->doPregrid)
-            calcLineAmpLinear(gp,here,neighI,gp[id].mol[molI].binv,deltav,&vfac[molI]);
-          else
-            calcLineAmpSpline(gp,here,neighI,gp[id].mol[molI].binv,deltav,&vfac[molI]);
-          mp[molI].vfac[iphot]=vfac[molI];
+          if(!par->doPregrid) {
+            calcLineAmpPWLin(gp,here,neighI,molI,deltav[molI],inidir,&vfac_in[molI],&vfac_out[molI]);
+         } else
+            calcLineAmpLin(gp,here,neighI,molI,deltav[molI],inidir,&vfac_in[molI],&vfac_out[molI]);
+
+          mp[molI].vfac[iphot]=vfac_out[molI];
         }
-      } else {
-        ds=gp[here].ds[neighI];
-      
-        for(molI=0;molI<par->nSpecies;molI++){
-          if(par->doPregrid)
-            calcLineAmpLinear(gp,here,neighI,gp[id].mol[molI].binv,deltav,&vfac[molI]);
-          else
-            calcLineAmpSpline(gp,here,neighI,gp[id].mol[molI].binv,deltav,&vfac[molI]);
-        }
+        /*
+        Contribution of the local cell to emission and absorption is done in getjbar.
+        We only store the vfac for the local cell for use in ALI loops.
+        */
+        here=there;
+    continue;
+      }
+
+      /* If we've got to here, we have progressed beyond the first edge. Length of the new "in" edge is the length of the previous "out".
+      */
+      ds_in=ds_out;
+      ds_out=0.5*gp[here].ds[neighI]*dotProduct3D(inidir,gp[here].dir[neighI].xn);
+
+      for(molI=0;molI<par->nSpecies;molI++){
+        vfac_inprev[molI]=vfac_in[molI];
+        if(!par->doPregrid)
+          calcLineAmpPWLin(gp,here,neighI,molI,deltav[molI],inidir,&vfac_in[molI],&vfac_out[molI]);
+        else
+          calcLineAmpLin(gp,here,neighI,molI,deltav[molI],inidir,&vfac_in[molI],&vfac_out[molI]);
       }
 
       nextMolWithBlend = 0;
@@ -301,56 +317,33 @@ void photon(int id, struct grid *gp, molData *md, int iter, const gsl_rng *ran\
       for(molI=0;molI<par->nSpecies;molI++){
         nextLineWithBlend = 0;
         for(lineI=0;lineI<md[molI].nline;lineI++){
-          jnu=0.;
-          alpha=0.;
+          double jnu_line_in=0., jnu_line_out=0., jnu_cont=0., jnu_blend=0.;
+          double alpha_line_in=0., alpha_line_out=0., alpha_cont=0., alpha_blend=0.;
 
-          sourceFunc_line(md[molI],vfac[molI],gp[here].mol[molI],lineI,&jnu,&alpha);
-          sourceFunc_cont(gp[here].mol[molI].cont[lineI],&jnu,&alpha);
+          sourceFunc_line(&md[molI],vfac_inprev[molI],&(gp[here].mol[molI]),lineI,&jnu_line_in,&alpha_line_in);
+          sourceFunc_line(&md[molI],vfac_out[molI],&(gp[here].mol[molI]),lineI,&jnu_line_out,&alpha_line_out);
+          sourceFunc_cont(gp[here].mol[molI].cont[lineI],&jnu_cont,&alpha_cont);
 
-          dtau=alpha*ds;
-          if(dtau < -30) dtau = -30;
-          calcSourceFn(dtau, par, &remnantSnu, &expDTau);
-          remnantSnu *= jnu*ds;
+          /* cont and blend could use the same alpha and jnu counter, but maybe it's clearer this way */
 
-          mp[molI].phot[lineI+iphot*md[molI].nline]+=expTau[iline]*remnantSnu;
-          tau[iline]+=dtau;
-          expTau[iline]*=expDTau;
-          if(tau[iline] < -30.){
-            if(!silent) warning("Maser warning: optical depth has dropped below -30");
-            tau[iline]= -30.; 
-            expTau[iline]=exp(-tau[iline]);
-          }
-        
           /* Line blending part.
           */
           if(par->blend && blends.mols!=NULL && molI==blends.mols[nextMolWithBlend].molI\
           && lineI==blends.mols[nextMolWithBlend].lines[nextLineWithBlend].lineI){
-            jnu=0.;
-            alpha=0.;
+
             for(bi=0;bi<blends.mols[nextMolWithBlend].lines[nextLineWithBlend].numBlends;bi++){
               molJ  = blends.mols[nextMolWithBlend].lines[nextLineWithBlend].blends[bi].molJ;
               lineJ = blends.mols[nextMolWithBlend].lines[nextLineWithBlend].blends[bi].lineJ;
-              velProj = deltav - blends.mols[nextMolWithBlend].lines[nextLineWithBlend].blends[bi].deltaV;
-
-              if(par->doPregrid)
-                calcLineAmpLinear(gp,here,neighI,gp[id].mol[molJ].binv,velProj,&vblend);
+              velProj = deltav[molI] - blends.mols[nextMolWithBlend].lines[nextLineWithBlend].blends[bi].deltaV;
+	      /*  */
+              if(!par->doPregrid)
+                calcLineAmpPWLin(gp,here,neighI,molJ,velProj,inidir,&vblend_in,&vblend_out);
               else
-                calcLineAmpSpline(gp,here,neighI,gp[id].mol[molJ].binv,velProj,&vblend);
+                calcLineAmpLin(gp,here,neighI,molJ,velProj,inidir,&vblend_in,&vblend_out);
 
-              sourceFunc_line(md[molJ],vblend,gp[here].mol[molJ],lineJ,&jnu,&alpha);
-              dtau=alpha*ds;
-              if(dtau < -30) dtau = -30;
-              calcSourceFn(dtau, par, &remnantSnu, &expDTau);
-              remnantSnu *= jnu*ds;
-
-              mp[molI].phot[lineI+iphot*md[molI].nline]+=expTau[iline]*remnantSnu;
-              tau[iline]+=dtau;
-              expTau[iline]*=expDTau;
-              if(tau[iline] < -30.){
-                if(!silent) warning("Optical depth has dropped below -30");
-                tau[iline]= -30.; 
-                expTau[iline]=exp(-tau[iline]);
-              }
+	      /* we should use also the previous vblend_in, but I don't feel like writing the necessary code now */
+              sourceFunc_line(&md[molJ],vblend_out,&(gp[here].mol[molJ]),lineJ,&jnu_blend,&alpha_blend);
+              /* note that sourceFunc* increment jnu and alpha, they don't overwrite it  */
             }
 
             nextLineWithBlend++;
@@ -361,16 +354,37 @@ void photon(int id, struct grid *gp, molData *md, int iter, const gsl_rng *ran\
           }
           /* End of line blending part */
 
+	  /* as said above, out-in split should be done also for blended lines... */
+
+	  dtau=(alpha_line_out+alpha_cont+alpha_blend)*ds_out;
+          if(dtau < -30.) dtau = -30.;
+          calcSourceFn(dtau, par, &remnantSnu, &expDTau);
+          remnantSnu *= (jnu_line_out+jnu_cont+jnu_blend)*ds_out;
+          mp[molI].phot[lineI+iphot*md[molI].nline]+=expTau[iline]*remnantSnu;
+	  expTau[iline]*=expDTau;
+
+	  dtau=(alpha_line_in+alpha_cont+alpha_blend)*ds_in;
+          if(dtau < -30.) dtau = -30.;
+          calcSourceFn(dtau, par, &remnantSnu, &expDTau);
+          remnantSnu *= (jnu_line_in+jnu_cont+jnu_blend)*ds_in;
+          mp[molI].phot[lineI+iphot*md[molI].nline]+=expTau[iline]*remnantSnu;
+	  expTau[iline]*=expDTau;
+
+          if(expTau[iline] > exp(30.)){
+            if(!silent) warning("Maser warning: optical depth has dropped below -30");
+            expTau[iline]=exp(30.);
+          }
+
           iline++;
         } /* Next line this molecule. */
 
         if(par->blend && blends.mols!=NULL && molI==blends.mols[nextMolWithBlend].molI)
           nextMolWithBlend++;
       }
-      
+
       here=there;
-    } while(!gp[here].sink);
-    
+    };
+
     /* Add cmb contribution.
     */
     iline = 0;
@@ -381,51 +395,41 @@ void photon(int id, struct grid *gp, molData *md, int iter, const gsl_rng *ran\
       }
     }
   }
-  free(expTau);
-  free(tau);
 }
 
 /*....................................................................*/
-void getjbar(int posn, molData *md, struct grid *gp, const int molI\
+void
+getjbar(int posn, molData *md, struct grid *gp, const int molI\
   , configInfo *par, struct blendInfo blends, int nextMolWithBlend\
   , gridPointData *mp, double *halfFirstDs){
 
   int lineI,iphot,bi,molJ,lineJ,nextLineWithBlend;
-  double tau,expTau,remnantSnu,vsum=0.,jnu,alpha;
+  double dtau,expDTau,remnantSnu,vsum=0.;
   
   for(lineI=0;lineI<md[molI].nline;lineI++) mp[molI].jbar[lineI]=0.;
 
   for(iphot=0;iphot<gp[posn].nphot;iphot++){
-    if(mp[molI].vfac[iphot]>0){
+    if(mp[molI].vfac_loc[iphot]>0){
       nextLineWithBlend = 0;
       for(lineI=0;lineI<md[molI].nline;lineI++){
-        jnu=0.;
-        alpha=0.;
+        double jnu=0.0;
+        double alpha=0;
 
-        sourceFunc_line(md[molI],mp[molI].vfac[iphot],gp[posn].mol[molI],lineI,&jnu,&alpha);
+        sourceFunc_line(&md[molI],mp[molI].vfac[iphot],&(gp[posn].mol[molI]),lineI,&jnu,&alpha);
         sourceFunc_cont(gp[posn].mol[molI].cont[lineI],&jnu,&alpha);
-        tau=alpha*halfFirstDs[iphot];
-        calcSourceFn(tau, par, &remnantSnu, &expTau);
-        remnantSnu *= jnu*halfFirstDs[iphot];
-
-        mp[molI].jbar[lineI]+=mp[molI].vfac[iphot]*(expTau*mp[molI].phot[lineI+iphot*md[molI].nline]+remnantSnu);
 
         /* Line blending part.
         */
         if(par->blend && blends.mols!=NULL && molI==blends.mols[nextMolWithBlend].molI\
         && lineI==blends.mols[nextMolWithBlend].lines[nextLineWithBlend].lineI){
-          jnu=0.;
-          alpha=0.;
           for(bi=0;bi<blends.mols[nextMolWithBlend].lines[nextLineWithBlend].numBlends;bi++){
             molJ  = blends.mols[nextMolWithBlend].lines[nextLineWithBlend].blends[bi].molJ;
             lineJ = blends.mols[nextMolWithBlend].lines[nextLineWithBlend].blends[bi].lineJ;
-
-            sourceFunc_line(md[molJ],mp[molI].vfac[iphot],gp[posn].mol[molJ],lineJ,&jnu,&alpha);
-            tau=alpha*halfFirstDs[iphot];
-            calcSourceFn(tau, par, &remnantSnu, &expTau);
-            remnantSnu *= jnu*halfFirstDs[iphot];
-
-            mp[molI].jbar[lineI]+=mp[molI].vfac[iphot]*(expTau*mp[molI].phot[lineI+iphot*md[molI].nline]+remnantSnu);
+            /*
+            The next line is not quite correct, because vfac may be different for other molecules due to different values of binv. Unfortunately we don't necessarily have vfac for molJ available yet.
+            */
+            sourceFunc_line(&md[molJ],mp[molI].vfac[iphot],&(gp[posn].mol[molJ]),lineJ,&jnu,&alpha);
+	    /* note that sourceFunc* increment jnu and alpha, they don't overwrite it  */
           }
 
           nextLineWithBlend++;
@@ -435,12 +439,16 @@ void getjbar(int posn, molData *md, struct grid *gp, const int molI\
           }
         }
         /* End of line blending part */
-      } /* Next line this molecule. */
 
-      vsum+=mp[molI].vfac[iphot];
+        dtau=alpha*halfFirstDs[iphot];
+        calcSourceFn(dtau, par, &remnantSnu, &expDTau);
+        remnantSnu *= jnu*halfFirstDs[iphot];
+        mp[molI].jbar[lineI]+=mp[molI].vfac_loc[iphot]*(expDTau*mp[molI].phot[lineI+iphot*md[molI].nline]+remnantSnu);
+
+      }
+      vsum+=mp[molI].vfac_loc[iphot];
     }
   }
-  for(lineI=0;lineI<md[molI].nline;lineI++)
-    mp[molI].jbar[lineI] /= vsum;
+  for(lineI=0;lineI<md[molI].nline;lineI++) mp[molI].jbar[lineI] /= vsum;
 }
 
